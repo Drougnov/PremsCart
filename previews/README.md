@@ -1,0 +1,1 @@
+Illustrative browser screenshots using mocked API data. Real users and inventory are loaded from your own API. The homepage card animation is paused in some captures; mobile screenshots show fixed controls at the captured viewport position.

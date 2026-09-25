@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/*.tsbuildinfo
+**/.env
+**/appsettings.Development.json
+.vs/
+
+**/uploads/
+.env
+**/uploads/
+**/bin/
+**/obj/
