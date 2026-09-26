@@ -83,6 +83,8 @@ if (builder.Configuration["Bootstrap:AdminEmail"] is string adminEmail && builde
 }
 await DemoDataSeeder.SeedAsync(app.Services, builder.Configuration);
 app.UseCors("Frontend");
+app.UseDefaultFiles();
+app.UseStaticFiles();
 // Concurrent checkout/acceptance requests may conflict; let the client refresh and retry.
 app.Use(async (context, next) => {
     try { await next(context); }
@@ -95,4 +97,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<ChatHub>("/chatHub", options => options.CloseOnAuthenticationExpiration = true);
+app.MapFallbackToFile("index.html");
 app.Run();
