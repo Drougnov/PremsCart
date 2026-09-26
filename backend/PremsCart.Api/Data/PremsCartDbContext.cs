@@ -38,18 +38,18 @@ public sealed class PremsCartDbContext(DbContextOptions<PremsCartDbContext> opti
             if (!preferences.TryGetValue(id, out var user)) { user = await Users.FindAsync(new object[] { id }, cancellationToken); preferences[id] = user; }
             if (user == null) return;
             var enabled = category switch { "messages" => user.NotifyMessages, "offers" => user.NotifyOffers, "orders" => user.NotifyOrders, "rentals" => user.NotifyRentals, "saved" => user.NotifySavedListings, _ => true };
-            if (enabled) Notifications.Add(new Notification { UserId = id, Title = title, Message = message, Link = link });
+            if (enabled) Notifications.Add(new Notification { UserId = id, Title = title, Message = message, Link = link, Type = category });
         }
         foreach (var e in events)
         {
             switch (e.Entity)
             {
                 case Offer o:
-                    await Notify(o.BuyerId, "Offer update", $"Offer for listing #{o.ProductId}: {o.Status} · ৳{o.OfferAmount}", "/dashboard/offers", "offers");
-                    await Notify(o.SellerId, "Offer update", $"Offer for listing #{o.ProductId}: {o.Status} · ৳{o.OfferAmount}", "/dashboard/offers", "offers"); break;
+                    await Notify(o.BuyerId, "Offer update", $"Offer for item #{o.ProductId}: {o.Status} · ৳{o.OfferAmount}", "/dashboard/offers", "offers");
+                    await Notify(o.SellerId, "Offer update", $"Offer for item #{o.ProductId}: {o.Status} · ৳{o.OfferAmount}", "/dashboard/offers", "offers"); break;
                 case Order o:
-                    await Notify(o.BuyerId, "Order update", $"Listing #{o.ProductId}: {o.Status}. Pickup: {o.PickupStatus}",  e.State == EntityState.Added ? "/dashboard/purchases" : $"/orders/{o.Id}", o.RentalDays.HasValue ? "rentals" : "orders");
-                    await Notify(o.SellerId, "Order update", $"Listing #{o.ProductId}: {o.Status}. Pickup: {o.PickupStatus}",  e.State == EntityState.Added ? "/dashboard/sales" : $"/orders/{o.Id}", o.RentalDays.HasValue ? "rentals" : "orders"); break;
+                    await Notify(o.BuyerId, "Order update", $"Item #{o.ProductId}: {o.Status}. Pickup: {o.PickupStatus}",  e.State == EntityState.Added ? "/dashboard/purchases" : $"/orders/{o.Id}", o.RentalDays.HasValue ? "rentals" : "orders");
+                    await Notify(o.SellerId, "Order update", $"Item #{o.ProductId}: {o.Status}. Pickup: {o.PickupStatus}",  e.State == EntityState.Added ? "/dashboard/sales" : $"/orders/{o.Id}", o.RentalDays.HasValue ? "rentals" : "orders"); break;
                 case Message m when e.State == EntityState.Added:
                     var c = await Conversations.FindAsync(new object[] { m.ConversationId }, cancellationToken);
                     if (c != null) await Notify(m.SenderId == c.BuyerId ? c.SellerId : c.BuyerId, "New message", "You received a marketplace message.", $"/messages/{c.Id}", "messages"); break;
@@ -57,7 +57,7 @@ public sealed class PremsCartDbContext(DbContextOptions<PremsCartDbContext> opti
                     await Notify(r.ReviewedUserId, "New review", $"You received a {r.Rating}-star review.", $"/students/{r.ReviewedUserId}", "reviews"); break;
                 case Product p when e.State == EntityState.Modified && e.Property("Status").IsModified:
                     foreach (var id in await Wishlist.Where(w => w.ProductId == p.Id).Select(w => w.UserId).ToListAsync(cancellationToken))
-                        await Notify(id, "Saved listing update", $"{p.Title}: {p.Status}", "/dashboard/wishlist", "saved"); break;
+                        await Notify(id, "Saved item update", $"{p.Title}: {p.Status}", "/dashboard/wishlist", "saved"); break;
             }
         }
         return await base.SaveChangesAsync(cancellationToken);
@@ -115,7 +115,7 @@ public sealed class PremsCartDbContext(DbContextOptions<PremsCartDbContext> opti
         modelBuilder.Entity<StoreProduct>().HasIndex(x => new { x.StoreId, x.ProductId }).IsUnique();
         modelBuilder.Entity<StoreProduct>().HasOne(x => x.Store).WithMany(x => x.StoreProducts).HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<StoreProduct>().HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<StoreProduct>().ToTable(t => t.HasCheckConstraint("CK_StoreProducts_Quantity", "\"Quantity\" >= 0"));
+        modelBuilder.Entity<StoreProduct>().ToTable(t => { t.HasCheckConstraint("CK_StoreProducts_Quantity", "\"Quantity\" >= 0"); t.HasCheckConstraint("CK_StoreProducts_SortOrder", "\"SortOrder\" >= 0"); });
         modelBuilder.Entity<Report>().HasOne(x => x.Reporter).WithMany().HasForeignKey(x => x.ReporterId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Report>().HasOne(x => x.ReportedUser).WithMany().HasForeignKey(x => x.ReportedUserId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Report>().HasOne(x => x.ReportedProduct).WithMany().HasForeignKey(x => x.ReportedProductId).OnDelete(DeleteBehavior.Restrict);

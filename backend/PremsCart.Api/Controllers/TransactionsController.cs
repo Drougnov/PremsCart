@@ -36,18 +36,18 @@ public sealed class TransactionsController(PremsCartDbContext db) : ControllerBa
     public async Task<IActionResult> MakeOffer(MakeOfferRequest input)
     {
         var product = await db.Products.SingleOrDefaultAsync(x => x.Id == input.ProductId && !x.IsHidden && x.Seller.Status == "Active" && x.Seller.IsVerified && !db.StoreProducts.Any(sp => sp.ProductId == x.Id && (sp.Store.IsHidden || sp.Quantity < 1)) && (x.TransactionType == "Sell" || x.TransactionType == "Giveaway" || x.TransactionType == "Rent"));
-        if (product is null || product.Status != "Available") return NotFound(new { error = "Listing unavailable." });
-        if (product.SellerId == Me) return BadRequest(new { error = "You cannot offer on your own listing." });
+        if (product is null || product.Status != "Available") return NotFound(new { error = "Item unavailable." });
+        if (product.SellerId == Me) return BadRequest(new { error = "You cannot offer on your own item." });
         if (product.TransactionType != "Sell")
             return BadRequest(new { error = "Use the checkout form for giveaways and rentals. Rentals use the listed daily rate." });
-        if (input.Amount <= 0 || input.Amount > 9999999999.99m || decimal.Round(input.Amount, 2) != input.Amount)
-            return BadRequest(new { error = "Enter a positive amount with at most two decimal places." });
+        if (input.Amount <= 0 || input.Amount > 9999999999m || decimal.Truncate(input.Amount) != input.Amount)
+            return BadRequest(new { error = "Enter a whole-Taka amount greater than zero." });
         if (!product.IsNegotiable && input.Amount != product.Price)
-            return BadRequest(new { error = "This listing accepts its asking price only." });
+            return BadRequest(new { error = "This item accepts its asking price only." });
         if (await db.Offers.AnyAsync(x => x.ProductId == product.Id && x.BuyerId == Me &&
                 (x.Status == "Pending" || x.Status == "Countered")) ||
             await db.Orders.AnyAsync(x => x.ProductId == product.Id && x.BuyerId == Me && ActiveOrders.Contains(x.Status)))
-            return Conflict(new { error = "You already have an active offer or order for this listing." });
+            return Conflict(new { error = "You already have an active offer or order for this item." });
         var offer = new Offer { ProductId = product.Id, BuyerId = Me, SellerId = product.SellerId, OfferAmount = input.Amount, LastProposerId = Me, Proposals = [new OfferProposal { AuthorId = Me, Amount = input.Amount }] };
         db.Offers.Add(offer);
         await db.SaveChangesAsync();
@@ -61,9 +61,9 @@ public sealed class TransactionsController(PremsCartDbContext db) : ControllerBa
         if (offer is null) return NotFound();
         if ((offer.SellerId != Me && offer.BuyerId != Me) || (offer.LastProposerId ?? offer.BuyerId) == Me) return Forbid();
         if (offer.Status is not ("Pending" or "Countered") || (offer.Product.Status != "Available" || offer.Product.IsHidden)) return Conflict(new { error = "Offer is no longer open." });
-        if (!offer.Product.IsNegotiable) return BadRequest(new { error = "This listing has a fixed price." });
-        if (input.Amount <= 0 || input.Amount > 9999999999.99m || decimal.Round(input.Amount, 2) != input.Amount || input.Amount == offer.OfferAmount)
-            return BadRequest(new { error = "Enter a different positive amount with at most two decimal places." });
+        if (!offer.Product.IsNegotiable) return BadRequest(new { error = "This item has a fixed price." });
+        if (input.Amount <= 0 || input.Amount > 9999999999m || decimal.Truncate(input.Amount) != input.Amount || input.Amount == offer.OfferAmount)
+            return BadRequest(new { error = "Enter a different whole-Taka amount greater than zero." });
         offer.LastProposerId = Me;
         db.OfferProposals.Add(new OfferProposal { OfferId = offer.Id, AuthorId = Me, Amount = input.Amount });
         offer.OfferAmount = input.Amount;
@@ -92,7 +92,7 @@ public sealed class TransactionsController(PremsCartDbContext db) : ControllerBa
         if (offer is null) return NotFound();
         if ((offer.SellerId != Me && offer.BuyerId != Me) || (offer.LastProposerId ?? offer.BuyerId) == Me) return Forbid();
         if (offer.Status is not ("Pending" or "Countered") || (offer.Product.Status != "Available" || offer.Product.IsHidden))
-            return Conflict(new { error = "Offer or listing is no longer available." });
+            return Conflict(new { error = "Offer or item is no longer available." });
         if (await db.Orders.AnyAsync(x => x.ProductId == offer.ProductId && x.BuyerId == offer.BuyerId && ActiveOrders.Contains(x.Status)))
             return Conflict(new { error = "An active order already exists." });
         if (offer.Product.TransactionType != "Sell") return Conflict(new { error = "Only sales support negotiated offers. Use a new rental request with a duration." });
@@ -132,8 +132,8 @@ public sealed class TransactionsController(PremsCartDbContext db) : ControllerBa
     {
         await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
         var product = await db.Products.SingleOrDefaultAsync(x => x.Id == input.ProductId && !x.IsHidden && x.Seller.Status == "Active" && x.Seller.IsVerified && !db.StoreProducts.Any(sp => sp.ProductId == x.Id && (sp.Store.IsHidden || sp.Quantity < 1)) && (x.TransactionType == "Sell" || x.TransactionType == "Giveaway" || x.TransactionType == "Rent"));
-        if (product is null || product.Status != "Available") return NotFound(new { error = "Listing unavailable." });
-        if (product.SellerId == Me) return BadRequest(new { error = "You cannot request your own listing." });
+        if (product is null || product.Status != "Available") return NotFound(new { error = "Item unavailable." });
+        if (product.SellerId == Me) return BadRequest(new { error = "You cannot request your own item." });
         if (await db.Orders.AnyAsync(x => x.ProductId == product.Id && x.BuyerId == Me && ActiveOrders.Contains(x.Status)) ||
             await db.Offers.AnyAsync(x => x.ProductId == product.Id && x.BuyerId == Me &&
                 (x.Status == "Pending" || x.Status == "Countered")))
@@ -159,7 +159,7 @@ public sealed class TransactionsController(PremsCartDbContext db) : ControllerBa
         var order = await db.Orders.Include(x => x.Product).SingleOrDefaultAsync(x => x.Id == id);
         if (order is null) return NotFound();
         if (order.SellerId != Me) return Forbid();
-        if (order.Status != "Pending" || (order.Product.Status != "Available" || order.Product.IsHidden)) return Conflict(new { error = "Order or listing is unavailable." });
+        if (order.Status != "Pending" || (order.Product.Status != "Available" || order.Product.IsHidden)) return Conflict(new { error = "Order or item is unavailable." });
         if (await db.StoreProducts.AnyAsync(x => x.ProductId == order.ProductId && x.Store.IsHidden) || await db.Users.AnyAsync(x => x.Id == order.BuyerId && x.Status != "Active")) return Conflict(new { error = "This account or shop is unavailable." });
         var stock = order.RentalDays.HasValue ? null : await db.StoreProducts
             .SingleOrDefaultAsync(x => x.ProductId == order.ProductId);

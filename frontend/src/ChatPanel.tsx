@@ -1,12 +1,14 @@
 import { go } from './api'
 import Icon from './Icon'
+import { PrivateImage } from './Media'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { HubConnectionBuilder, HubConnectionState, type HubConnection } from '@microsoft/signalr'
 
 type Conversation = {
   id: number; productId: number; productTitle: string; otherUserId: number
-  otherUserName: string; lastMessage: string | null; lastMessageAt: string
-  unreadCount: number
+  otherUserName: string; otherUserImage?: string | null; lastMessage: string | null; lastMessageAt: string
+  productPrice?: number | null; productRentalPrice?: number | null; productTransactionType?: string; productAllowRent?: boolean
+  productImageUrl?: string | null; productStatus?: string; offerAmount?: number | null; offerStatus?: string | null; unreadCount: number
 }
 type ChatMessage = {
   id: number; conversationId: number; senderId: number; messageText: string
@@ -41,6 +43,7 @@ export default function ChatPanel({ token, path }: { token: string; path: string
   const selectedRef = useRef<number | null>(null)
   const otherUserRef = useRef<number | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
+  const unreadTotal = conversations.reduce((sum,c)=>sum+c.unreadCount,0)
 
   const refreshInbox = useCallback(async () => {
     if (!token) return
@@ -154,11 +157,37 @@ export default function ChatPanel({ token, path }: { token: string; path: string
   }
 
   const selected = conversations.find(x => x.id === selectedId)
+  const itemMeta = (c:Conversation) => {
+    if (c.productAllowRent) return `Buy ${c.productPrice == null ? '' : `· Tk ${c.productPrice.toLocaleString()}`} · Rent ${c.productRentalPrice == null ? '' : `Tk ${c.productRentalPrice.toLocaleString()}/day`}`.replace(/\s+·\s+·/g,' · ')
+    if (c.productTransactionType === 'Giveaway') return 'Giveaway'
+    if (c.productTransactionType === 'Rent') return `Rent${c.productPrice == null ? '' : ` · Tk ${c.productPrice.toLocaleString()}/day`}`
+    return `For sale${c.productPrice == null ? '' : ` · Tk ${c.productPrice.toLocaleString()}`}`
+  }
+  const filtered = conversations.filter(c=>(!onlyUnread||c.unreadCount>0)&&`${c.otherUserName} ${c.productTitle}`.toLowerCase().includes(query.toLowerCase()))
+
   return <section className="chat-section" id="messages">
-    <div className="section-heading"><div><p className="eyebrow">CAMPUS CONVERSATIONS</p><h2>Messages</h2></div>{token && <span className={`chat-connection ${connectionStatus}`}>{connectionStatus === 'connected' ? '● Live' : connectionStatus === 'reconnecting' ? 'Reconnecting…' : connectionStatus === 'connecting' ? 'Connecting…' : 'Offline'}</span>}</div>
-    {!token ? <div className="empty-state"><h3>Sign in to read messages</h3><p>Start a conversation from a product listing.</p><a className="market-link" href="#account">Go to student sign in</a></div> : <>
+    <div className="section-heading"><div><p className="eyebrow">CAMPUS CONVERSATIONS</p><h2>Messages</h2><p>Every conversation keeps the related item visible, so you always know what you are discussing.</p></div>{token && <span className={`chat-connection ${connectionStatus}`}>{connectionStatus === 'connected' ? '● Live' : connectionStatus === 'reconnecting' ? 'Reconnecting…' : connectionStatus === 'connecting' ? 'Connecting…' : 'Offline'}</span>}</div>
+    {!token ? <div className="empty-state"><h3>Sign in to read messages</h3><p>Open an item and choose “Message seller” to start a conversation.</p><a className="button button-primary" href="/login">Sign in</a></div> : <>
       {error && <p className="form-error" role="alert">{error}{connectionStatus === 'offline' && <button className="chat-retry" onClick={() => setRetry(n => n + 1)}>Retry</button>}</p>}
-      <div className={`chat-layout ${selectedId?'chat-has-selection':''}`}><aside className="chat-inbox"><h3>Conversations</h3><label className="chat-search"><span className="sr-only">Search conversations</span><input placeholder="Search conversations" value={query} onChange={e=>setQuery(e.target.value)}/></label><label className="check-field"><input type="checkbox" checked={onlyUnread} onChange={e=>setOnlyUnread(e.target.checked)}/>Unread only</label>{conversations.length === 0 ? <p className="chat-empty">No conversations yet. Open a product and select “Message seller.”</p> : conversations.filter(c=>(!onlyUnread||c.unreadCount>0)&&`${c.otherUserName} ${c.productTitle}`.toLowerCase().includes(query.toLowerCase())).map(c => <button className={`chat-conversation ${c.id === selectedId ? 'active' : ''}`} key={c.id} onClick={() => go(`/messages/${c.id}`)}><strong>{c.otherUserName}</strong>{c.unreadCount > 0 && <span className="unread-count">{c.unreadCount}</span>}<small>{c.productTitle}</small><span className="chat-preview">{c.lastMessage || 'Start the conversation'}</span></button>)}</aside><div className="chat-thread">{selected ? <><header className="chat-thread-header"><a className="chat-back icon-button" href="/messages" aria-label="Back to conversations"><Icon name="arrow"/></a><div><h3>{selected.otherUserName}</h3><p><a href={`/listings/${selected.productId}`}>{selected.productTitle}</a></p></div><span className={`presence ${otherOnline ? 'online' : ''}`}>{otherOnline === null ? 'Checking…' : otherOnline ? 'Online' : 'Offline'}</span></header><div className="chat-messages">{hasMore && <button className="text-button older-messages" disabled={loading} onClick={loadOlder}>Load older messages</button>}{loading && messages.length === 0 ? <p className="chat-empty">Loading messages…</p> : messages.length === 0 ? <p className="chat-empty">Say hello and ask about this product.</p> : messages.map(message => <div className={`chat-bubble ${message.senderId === myId ? 'mine' : ''}`} key={message.id}><p>{message.messageText}</p>{message.senderId!==myId&&<button className="text-button" onClick={()=>window.dispatchEvent(new CustomEvent('premscart-report',{detail:{messageId:message.id,name:'message'}}))}>Report</button>}<time dateTime={message.sentAt}>{new Date(message.sentAt).toLocaleString()}</time></div>)}<div ref={endRef} /></div><form className="chat-compose" onSubmit={send}><label className="sr-only" htmlFor="chat-draft">Message</label><input id="chat-draft" maxLength={2000} placeholder={joined ? 'Write a message…' : 'Connecting to chat…'} value={draft} onChange={e => setDraft(e.target.value)} disabled={!joined || sending} /><button className="market-action" type="submit" disabled={!draft.trim() || !joined || sending}>Send</button></form></> : <div className="chat-empty chat-select">Choose a conversation to view its messages.</div>}</div></div>
+      <div className={`chat-layout ${selectedId?'chat-has-selection':''}`}>
+        <aside className="chat-inbox">
+          <div className="chat-inbox-heading"><div><span className="eyebrow">YOUR CHATS</span><h3>Conversations</h3></div>{unreadTotal>0&&<span className="unread-summary">{unreadTotal} unread</span>}</div>
+          <div className="chat-inbox-tools"><label className="chat-search"><Icon name="search"/><span className="sr-only">Search conversations</span><input placeholder="Search a person or item" value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="catalog-tabs chat-filter-tabs" role="group" aria-label="Conversation filter"><button type="button" className={!onlyUnread?'active':''} aria-pressed={!onlyUnread} onClick={()=>setOnlyUnread(false)}>All</button><button type="button" className={onlyUnread?'active':''} aria-pressed={onlyUnread} onClick={()=>setOnlyUnread(true)}>Unread{unreadTotal>0&&<span className="count-badge">{unreadTotal}</span>}</button></div></div>
+          {conversations.length === 0 ? <p className="chat-empty">No conversations yet. Message a seller from an item page to start one.</p> : filtered.length === 0 ? <p className="chat-empty">No conversations match this filter.</p> : filtered.map(c => <button className={`chat-conversation ${c.id === selectedId ? 'active' : ''} ${c.unreadCount>0?'unread':''}`} key={c.id} onClick={() => go(`/messages/${c.id}`)}>
+            <span className="chat-list-avatar"><PrivateImage url={c.otherUserImage} token={token} alt=""/></span>
+            <span className="chat-list-main"><span className="chat-list-heading"><strong>{c.otherUserName}</strong><time dateTime={c.lastMessageAt}>{new Date(c.lastMessageAt).toLocaleDateString([], {month:'short',day:'numeric'})}</time></span><small>{c.productTitle}</small><span className="chat-preview">{c.lastMessage || 'Start the conversation'}</span></span>
+            {c.unreadCount > 0 && <span className="unread-count">{c.unreadCount}</span>}
+          </button>)}
+        </aside>
+        <div className="chat-thread">{selected ? <>
+          <header className="chat-thread-header"><a className="chat-back icon-button" href="/messages" aria-label="Back to conversations"><Icon name="arrow"/></a><div><h3>{selected.otherUserName}</h3><p>Conversation about a campus item</p></div><span className={`presence ${otherOnline ? 'online' : ''}`}>{otherOnline === null ? 'Checking…' : otherOnline ? 'Online' : 'Offline'}</span></header>
+          <a className="chat-item-context" href={`/listings/${selected.productId}`} aria-label={`View ${selected.productTitle}`}>
+            <span className="chat-item-image"><PrivateImage url={selected.productImageUrl} token={token} alt=""/></span><span className="chat-item-copy"><small>RELATED ITEM</small><strong>{selected.productTitle}</strong><span>{itemMeta(selected)}{selected.productStatus&&selected.productStatus!=='Available'?` · ${selected.productStatus}`:''}</span>{selected.offerStatus&&selected.offerAmount!=null&&<span className={`chat-offer-state status-${selected.offerStatus.toLowerCase()}`}><Icon name="offer"/>Latest offer: Tk {selected.offerAmount.toLocaleString()} · {selected.offerStatus}</span>}</span><span className="chat-item-link">View item <Icon name="arrow"/></span>
+          </a>
+          <div className="chat-messages">{hasMore && <button className="text-button older-messages" disabled={loading} onClick={loadOlder}>Load older messages</button>}{loading && messages.length === 0 ? <p className="chat-empty">Loading messages…</p> : messages.length === 0 ? <p className="chat-empty">Say hello and ask about this item.</p> : messages.map(message => <div className={`chat-bubble ${message.senderId === myId ? 'mine' : ''}`} key={message.id}><p>{message.messageText}</p>{message.senderId!==myId&&<button className="text-button" onClick={()=>window.dispatchEvent(new CustomEvent('premscart-report',{detail:{messageId:message.id,name:'message'}}))}>Report</button>}<div className="chat-message-meta"><time dateTime={message.sentAt}>{new Date(message.sentAt).toLocaleString()}</time>{message.senderId===myId&&<span className={message.isRead?'seen':'sent'}>{message.isRead?'Seen':'Sent'}</span>}</div></div>)}<div ref={endRef} /></div>
+          <form className="chat-compose" onSubmit={send}><label className="sr-only" htmlFor="chat-draft">Message</label><input id="chat-draft" maxLength={2000} placeholder={joined ? 'Write a message…' : 'Connecting to chat…'} value={draft} onChange={e => setDraft(e.target.value)} disabled={!joined || sending} /><button className="market-action" type="submit" disabled={!draft.trim() || !joined || sending}>Send</button></form>
+        </> : <div className="chat-empty chat-select"><Icon name="message"/><h3>Choose a conversation</h3><p>Select a chat to see the related item and your messages.</p></div>}</div>
+      </div>
     </>}
   </section>
 }

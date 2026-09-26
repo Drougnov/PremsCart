@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PremsCart.Api.Data;
+using PremsCart.Api.Models;
 
 namespace PremsCart.Api.Controllers;
 
@@ -15,6 +16,30 @@ public sealed class AdminUsersController(PremsCartDbContext db) : ControllerBase
         Ok(await db.Users.Include(x => x.Role).OrderBy(x => x.Id)
             .Select(x => new { x.Id, x.FirstName, x.LastName, x.UniversityEmail, x.IsVerified, x.Status, Role = x.Role.RoleName })
             .ToListAsync());
+
+    [HttpPost("{id:int}/verify")]
+    public async Task<IActionResult> Verify(int id)
+    {
+        var user = await db.Users.SingleOrDefaultAsync(x => x.Id == id);
+        if (user is null) return NotFound();
+        if (user.IsVerified) return NoContent();
+
+        user.IsVerified = true;
+        user.UpdatedAt = DateTime.UtcNow;
+        user.TokenVersion++;
+        var codes = await db.EmailVerifications.Where(x => x.UserId == id).ToListAsync();
+        if (codes.Count > 0) db.EmailVerifications.RemoveRange(codes);
+        db.Notifications.Add(new Notification
+        {
+            UserId = id,
+            Title = "Account verified",
+            Message = "An administrator verified your campus account. You can now use PremsCart.",
+            Link = "/dashboard",
+            Type = "account"
+        });
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
 
     [HttpPut("{id:int}/role")]
     public async Task<IActionResult> ChangeRole(int id, ChangeRoleRequest request)

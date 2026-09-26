@@ -43,8 +43,10 @@ public sealed class ProductsController(PremsCartDbContext db, IWebHostEnvironmen
         [FromQuery] decimal? minPrice, [FromQuery] decimal? maxPrice, [FromQuery] int page = 1, [FromQuery] string? condition = null, [FromQuery] bool? negotiable = null, [FromQuery] string? location = null, [FromQuery] string sort = "newest")
     {
         if (page < 1 || page > 10000 || minPrice < 0 || maxPrice < 0 || minPrice > maxPrice ||
+            (minPrice.HasValue && decimal.Truncate(minPrice.Value) != minPrice.Value) ||
+            (maxPrice.HasValue && decimal.Truncate(maxPrice.Value) != maxPrice.Value) ||
             search?.Length > 100 || (type is not null && !Types.Contains(type)))
-            return BadRequest(new { error = "Invalid search or filter." });
+            return BadRequest(new { error = "Use valid filters and whole-Taka minimum/maximum prices." });
         var query = db.Products.AsNoTracking().Where(p => p.Status == "Available" && !p.IsHidden && p.Seller.Status == "Active" && p.Seller.IsVerified && !db.StoreProducts.Any(sp => sp.ProductId == p.Id && sp.Store.IsHidden));
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -123,6 +125,15 @@ public sealed class ProductsController(PremsCartDbContext db, IWebHostEnvironmen
         };
         db.Products.Add(product);
         await db.SaveChangesAsync();
+
+        // Sellers do not have to manage a second copy of their items: every new post is added to their store automatically.
+        var storeId = await db.Stores.Where(x => x.OwnerId == CurrentUserId).Select(x => (int?)x.Id).SingleOrDefaultAsync();
+        if (storeId.HasValue)
+        {
+            var nextSort = (await db.StoreProducts.Where(x => x.StoreId == storeId.Value).MaxAsync(x => (int?)x.SortOrder) ?? -1) + 1;
+            db.StoreProducts.Add(new StoreProduct { StoreId = storeId.Value, ProductId = product.Id, Quantity = 1, IsVisible = true, SortOrder = nextSort });
+            await db.SaveChangesAsync();
+        }
         return CreatedAtAction(nameof(Details), new { id = product.Id }, new { product.Id });
     }
 
@@ -133,16 +144,15 @@ public sealed class ProductsController(PremsCartDbContext db, IWebHostEnvironmen
         var product = await db.Products.SingleOrDefaultAsync(p => p.Id == id);
         if (product is null) return NotFound();
         if (product.SellerId != CurrentUserId) return Forbid();
-        if (product.IsHidden) return Conflict(new { error = "This listing is hidden by administration." });
+        if (product.IsHidden) return Conflict(new { error = "This item is hidden by administration." });
         if (request.Status == "Available" && await db.StoreProducts.AnyAsync(sp => sp.ProductId == id && sp.Quantity == 0))
             return Conflict(new { error = "Restock this product from your store before making it available." });
         if (product.Status is "Sold" or "GivenAway" || await db.Orders.AnyAsync(o => o.ProductId == id && (o.Status == "Pending" || o.Status == "Accepted" || o.Status == "Pickup scheduled" || o.Status == "Rented" || o.Status == "Return requested")))
-            return Conflict(new { error = "Finish or cancel active transactions before editing this listing." });
+            return Conflict(new { error = "Finish or cancel active transactions before editing this item." });
         var error = await Validate(request);
         if (error is not null) return BadRequest(new { error });
-        if ((request.TransactionType == "Rent" || request.AllowRent) && await db.StoreProducts.AnyAsync(x => x.ProductId == id)) return Conflict(new { error = "Remove this item from store inventory before converting it to a rental." });
-        if (product.TransactionType != request.TransactionType && await db.Orders.AnyAsync(x => x.ProductId == id)) return Conflict(new { error = "Create a new listing to change transaction type after an order." });
-        if (await db.Offers.AnyAsync(x => x.ProductId == id && (x.Status == "Pending" || x.Status == "Countered"))) return Conflict(new { error = "Close active offers before editing listing terms." });
+        if (product.TransactionType != request.TransactionType && await db.Orders.AnyAsync(x => x.ProductId == id)) return Conflict(new { error = "Post a new item to change its type after an order." });
+        if (await db.Offers.AnyAsync(x => x.ProductId == id && (x.Status == "Pending" || x.Status == "Countered"))) return Conflict(new { error = "Close active offers before changing this item." });
         product.Title = request.Title.Trim();
         product.Description = request.Description.Trim();
         product.CategoryId = request.CategoryId;
@@ -164,14 +174,15 @@ public sealed class ProductsController(PremsCartDbContext db, IWebHostEnvironmen
         var product = await db.Products.Include(p => p.Images).SingleOrDefaultAsync(p => p.Id == id);
         if (product is null) return NotFound();
         if (product.SellerId != CurrentUserId) return Forbid();
-        if (product.IsHidden) return Conflict(new { error = "This listing is hidden by administration." });
+        if (product.IsHidden) return Conflict(new { error = "This item is hidden by administration." });
         if (await db.Orders.AnyAsync(x => x.ProductId == id) ||
             await db.Conversations.AnyAsync(x => x.ProductId == id) ||
             await db.Offers.AnyAsync(x => x.ProductId == id) ||
-            await db.StoreProducts.AnyAsync(x => x.ProductId == id) ||
             await db.Reports.AnyAsync(x => x.ReportedProductId == id))
-            return Conflict(new { error = "This listing has activity. Mark it Unavailable instead." });
+            return Conflict(new { error = "This item has activity. Mark it Unavailable instead." });
         var paths = product.Images.Select(x => ImagePath(x.ImageUrl)).ToList();
+        var storeItems = await db.StoreProducts.Where(x => x.ProductId == id).ToListAsync();
+        if (storeItems.Count > 0) db.StoreProducts.RemoveRange(storeItems);
         db.Products.Remove(product);
         await db.SaveChangesAsync();
         foreach (var path in paths) if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
@@ -186,7 +197,7 @@ public sealed class ProductsController(PremsCartDbContext db, IWebHostEnvironmen
         var product = await db.Products.Include(p => p.Images).SingleOrDefaultAsync(p => p.Id == id);
         if (product is null) return NotFound();
         if (product.SellerId != CurrentUserId) return Forbid();
-        if (product.IsHidden) return Conflict(new { error = "This listing is hidden by administration." });
+        if (product.IsHidden) return Conflict(new { error = "This item is hidden by administration." });
         if (product.Images.Count >= 5) return BadRequest(new { error = "Maximum five images per product." });
         if (file is null || file.Length < 12 || file.Length > MaxImageBytes)
             return BadRequest(new { error = "Choose an image under 5 MB." });
@@ -229,7 +240,7 @@ public sealed class ProductsController(PremsCartDbContext db, IWebHostEnvironmen
         var product = await db.Products.Include(x => x.Images).SingleOrDefaultAsync(x => x.Id == id);
         if (product is null) return NotFound();
         if (product.SellerId != CurrentUserId) return Forbid();
-        if (product.IsHidden) return Conflict(new { error = "This listing is hidden by administration." });
+        if (product.IsHidden) return Conflict(new { error = "This item is hidden by administration." });
         var image = product.Images.SingleOrDefault(x => x.Id == imageId);
         if (image is null) return NotFound();
         db.ProductImages.Remove(image);
@@ -248,7 +259,7 @@ public sealed class ProductsController(PremsCartDbContext db, IWebHostEnvironmen
     public async Task<IActionResult> Primary(int id, int imageId) {
         var p = await db.Products.Include(x => x.Images).SingleOrDefaultAsync(x => x.Id == id);
         if (p == null) return NotFound(); if (p.SellerId != CurrentUserId) return Forbid();
-        if (p.IsHidden) return Conflict(new { error = "This listing is hidden by administration." });
+        if (p.IsHidden) return Conflict(new { error = "This item is hidden by administration." });
         if (!p.Images.Any(x => x.Id == imageId)) return NotFound();
         foreach (var image in p.Images) image.IsPrimary = image.Id == imageId;
         await db.SaveChangesAsync(); return Ok();
@@ -264,8 +275,8 @@ public sealed class ProductsController(PremsCartDbContext db, IWebHostEnvironmen
             return "Title and description are required.";
         if (!Types.Contains(p.TransactionType) || !Conditions.Contains(p.Condition) || !Statuses.Contains(p.Status))
             return "Choose a valid type, condition, and status.";
-        if (p.AllowRent && (p.TransactionType != "Sell" || p.RentalPrice is null or <= 0 or > 9999999999.99m || decimal.Round(p.RentalPrice.Value,2) != p.RentalPrice.Value)) return "Choose a positive daily rental price with at most two decimal places for a sale with renting enabled.";
-        if (p.Price > 9999999999.99m || (p.Price.HasValue && decimal.Round(p.Price.Value, 2) != p.Price.Value)) return "Price supports at most two decimal places.";
+        if (p.AllowRent && (p.TransactionType != "Sell" || p.RentalPrice is null or <= 0 or > 9999999999m || decimal.Truncate(p.RentalPrice.Value) != p.RentalPrice.Value)) return "Choose a positive whole-Taka daily rental price for a sale with renting enabled.";
+        if (p.Price > 9999999999m || (p.Price.HasValue && decimal.Truncate(p.Price.Value) != p.Price.Value)) return "Use a whole-Taka price with no decimals.";
         if (string.IsNullOrWhiteSpace(p.Location) || !await db.PickupLocations.AnyAsync(x => x.LocationName == p.Location)) return "Choose a campus pickup location.";
         if (!await db.Categories.AnyAsync(x => x.Id == p.CategoryId)) return "Choose a category.";
         if ((p.TransactionType is "Sell" or "Rent") && (p.Price is null or <= 0))

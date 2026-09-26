@@ -201,6 +201,8 @@ public sealed class PremsCartDbContextModelSnapshot : ModelSnapshot {
             b.Property<int>("StoreId").HasColumnType("integer");
             b.Property<int>("ProductId").HasColumnType("integer");
             b.Property<int>("Quantity").HasColumnType("integer");
+            b.Property<bool>("IsVisible").HasColumnType("boolean");
+            b.Property<int>("SortOrder").HasColumnType("integer");
             b.HasKey("Id");
             b.ToTable("StoreProducts");
         });
@@ -310,7 +312,7 @@ public sealed class PremsCartDbContextModelSnapshot : ModelSnapshot {
         modelBuilder.Entity<StoreProduct>().HasIndex(x => new { x.StoreId, x.ProductId }).IsUnique();
         modelBuilder.Entity<StoreProduct>().HasOne(x => x.Store).WithMany(x => x.StoreProducts).HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<StoreProduct>().HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<StoreProduct>().ToTable(t => t.HasCheckConstraint("CK_StoreProducts_Quantity", "\"Quantity\" >= 0"));
+        modelBuilder.Entity<StoreProduct>().ToTable(t => { t.HasCheckConstraint("CK_StoreProducts_Quantity", "\"Quantity\" >= 0"); t.HasCheckConstraint("CK_StoreProducts_SortOrder", "\"SortOrder\" >= 0"); });
         modelBuilder.Entity<Report>().HasOne(x => x.Reporter).WithMany().HasForeignKey(x => x.ReporterId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Report>().HasOne(x => x.ReportedUser).WithMany().HasForeignKey(x => x.ReportedUserId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Report>().HasOne(x => x.ReportedProduct).WithMany().HasForeignKey(x => x.ReportedProductId).OnDelete(DeleteBehavior.Restrict);

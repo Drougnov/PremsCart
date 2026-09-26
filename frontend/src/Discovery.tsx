@@ -26,7 +26,7 @@ export function GlobalSearch({ userId }: { userId?: number }) {
     }
     const timer = setTimeout(
       () =>
-        api(`/api/products?search=${encodeURIComponent(value.trim())}`)
+        api(`/api/products?type=Sell&search=${encodeURIComponent(value.trim())}`)
           .then((r) => {
             if (active)
               setSuggestions(r.items.slice(0, 5).map((p: Product) => p.title));
@@ -59,13 +59,13 @@ export function GlobalSearch({ userId }: { userId?: number }) {
     >
       <Icon name="search" />
       <label className="sr-only" htmlFor="global-discovery">
-        Search marketplace
+        Search items for sale
       </label>
       <input
         id="global-discovery"
         maxLength={100}
         list="search-suggestions"
-        placeholder="Search campus finds"
+        placeholder="Search items for sale"
         value={value}
         onChange={(e) => setValue(e.target.value)}
       />
@@ -74,7 +74,7 @@ export function GlobalSearch({ userId }: { userId?: number }) {
           <option key={x} value={x} />
         ))}
       </datalist>
-      <button type="submit" aria-label="Search marketplace">
+      <button type="submit" aria-label="Search items for sale">
         <Icon name="arrow" />
       </button>
     </form>
@@ -109,7 +109,7 @@ export function HomeDiscovery({ token }: { token: string }) {
           <h2>A campus full of possibilities.</h2>
         </div>
         <a className="inline-link" href="/marketplace">
-          Explore all finds
+          Browse campus items
           <Icon name="arrow" />
         </a>
       </div>
@@ -117,7 +117,7 @@ export function HomeDiscovery({ token }: { token: string }) {
         <div className="community-counts">
           <span>
             <strong>{stats.activeListings.toLocaleString()}</strong> available
-            listings
+            items
           </span>
           <span>
             <strong>{stats.verifiedMembers.toLocaleString()}</strong>{" "}
@@ -159,13 +159,13 @@ export function HomeDiscovery({ token }: { token: string }) {
           </span>
           <div>
             <h3>Real finds, shared within your campus.</h3>
-            <p>Sign in to see current listings, photos, and student sellers.</p>
+            <p>Sign in to see current campus items, photos, and student sellers.</p>
           </div>
           <a
             className="button button-primary"
             href="/login?next=%2Fmarketplace"
           >
-            See campus listings
+            See items for sale
             <Icon name="arrow" />
           </a>
         </div>
@@ -227,9 +227,9 @@ export function ListingShelf({
           ? "Have something useful to lend?"
           : "The next good find could be yours."
       }
-      message="Be among the first to share a listing with your campus."
+      message="Be among the first to post an item for your campus."
       href="/listings/new"
-      label="Post a listing"
+      label="Post an item"
     />
   );
 }

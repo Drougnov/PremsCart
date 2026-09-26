@@ -16,7 +16,6 @@ async function api<T>(url: string, token: string, payload?: object): Promise<T> 
 }
 
 export default function Community({ token }: { token: string }) {
-  const [role, setRole] = useState('')
   const reviews=useLoad('/api/community/reviews/mine')
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null)
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null)
@@ -25,24 +24,18 @@ export default function Community({ token }: { token: string }) {
   const [reason, setReason] = useState('')
   const [reputation, setReputation] = useState<Reputation | null>(null)
   const [mine, setMine] = useState<Report[]>([])
-  const [queue, setQueue] = useState<Report[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const isModerator = role === 'Moderator' || role === 'Admin'
   useEffect(() => {
-    setRole(''); setMine([]); setQueue([]); setReviewTarget(null); setReportTarget(null); setReputation(null); setError('')
+    setMine([]); setReviewTarget(null); setReportTarget(null); setReputation(null); setError('')
     if (!token) return
     let active = true
-    Promise.all([api<{ role: string }>('/api/users/profile', token), api<Report[]>('/api/community/reports/mine', token)])
-      .then(([profile, reports]) => { if (active) { setRole(profile.role); setMine(reports) } })
+    api<Report[]>('/api/community/reports/mine', token)
+      .then(reports => { if (active) setMine(reports) })
       .catch(e => { if (active) setError(e.message) })
     return () => { active = false }
   }, [token])
-  useEffect(() => {
-    if (!token || !isModerator) return
-    api<Report[]>('/api/community/reports/moderation', token).then(setQueue).catch(e => setError(e.message))
-  }, [token, isModerator])
   useEffect(() => {
     const review = (e: Event) => { setReviewTarget((e as CustomEvent<ReviewTarget>).detail); setError(''); document.getElementById('community')?.scrollIntoView({ behavior: 'smooth' }) }
     const report = (e: Event) => { setReportTarget((e as CustomEvent<ReportTarget>).detail); setError(''); document.getElementById('community')?.scrollIntoView({ behavior: 'smooth' }) }
@@ -71,7 +64,7 @@ export default function Community({ token }: { token: string }) {
       setMine(await api<Report[]>('/api/community/reports/mine', token)); setReportTarget(null); setReason(''); setNotice('Report sent to moderation.');toast('Report sent to moderation.')
     } catch (err) { setError(err instanceof Error ? err.message : 'Report failed.') } finally { setBusy(false) }
   }
-  return <section className="feature-section community-section" id="community"><div className="section-heading"><div><span className="eyebrow">CAMPUS TRUST</span><h2>Reviews & safety</h2><p>Share feedback after pickup and flag listings for review.</p></div></div>
+  return <section className="page-section community-section" id="community"><div className="page-heading"><div><span className="eyebrow">REVIEWS & REPORTS</span><h1>Reviews & reports</h1><p>See feedback you have left and follow reports you submitted. New reviews and reports start from the relevant order, item, profile, or message.</p></div></div>
     {!token ? <p className="feature-empty">Sign in to review or report.</p> : <>
       {error && <p role="alert" className="form-error">{error}</p>}{notice && <p role="status" className="form-success">{notice}</p>}
       {reviewTarget && <form className="community-form" onSubmit={sendReview}><h3>Review your order: {reviewTarget.productTitle}</h3><label>Rating<select value={rating} onChange={e => setRating(e.target.value)}>{[5, 4, 3, 2, 1].map(x => <option key={x} value={x}>{x} star{x !== 1 && 's'}</option>)}</select></label><label>Comment<textarea maxLength={1000} rows={3} value={comment} onChange={e => setComment(e.target.value)} /></label><div className="transaction-buttons"><button className="market-action" disabled={busy}>Post review</button><button type="button" onClick={() => setReviewTarget(null)}>Cancel</button></div></form>}
@@ -79,7 +72,6 @@ export default function Community({ token }: { token: string }) {
       {reputation && <div className="community-form"><div className="transaction-card-heading"><h3>{reputation.name} {reputation.isVerified && <span className="type-pill">University email verified</span>}</h3><button onClick={() => setReputation(null)}>Close</button></div><p>{reputation.reviewCount ? `${reputation.averageRating?.toFixed(1)} / 5 · ${reputation.reviewCount} reviews` : 'No reviews yet'}</p>{reputation.reviews.map(x => <article className="review-row" key={x.id}><strong>{'★'.repeat(x.rating)}{'☆'.repeat(5 - x.rating)}</strong> · {x.reviewerName} · {x.productTitle}<p>{x.comment || 'No comment'}</p></article>)}</div>}
       <div className="community-form"><h3>My reviews</h3>{reviews.error&&<p role="alert">{reviews.error}</p>}{reviews.data?.length===0&&<p>No reviews yet. Complete an order to leave feedback.</p>}{reviews.data?.map((r:any)=><p key={r.id}>Order #{r.orderId} · {r.rating}/5 · {r.comment} · <a href={`/students/${r.reviewedUserId}`}>Student profile</a></p>)}</div>
       <div className="community-form"><h3>My reports</h3>{mine.length ? mine.map(r => <p key={r.id}>#{r.id} · {r.status} · {r.reason}</p>) : <p>No reports submitted.</p>}</div>
-      {isModerator && <div className="community-form"><h3>Moderation queue</h3>{queue.length ? queue.map(r => <article key={r.id} className="review-row"><strong>#{r.id} · {r.productTitle ?? r.userName ?? 'User'} </strong><p>From {r.reporterName}: {r.reason}</p><div className="transaction-buttons"><a className="button button-secondary" href="/moderator/reports">Review report</a></div></article>) : <p>No pending reports.</p>}</div>}
     </>}
   </section>
 }

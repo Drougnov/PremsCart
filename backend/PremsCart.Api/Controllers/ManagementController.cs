@@ -19,7 +19,7 @@ public class ManagementController(PremsCartDbContext db) : ControllerBase {
     var u = await db.Users.FindAsync(id); if (u == null) return NotFound();
     if (id == Me || u.RoleId == 4 || (u.RoleId == 3 && !User.IsInRole("Admin"))) return Forbid();
     if (input.Action != "Warn") { u.Status = input.Action == "Suspend" ? "Suspended" : "Active"; u.SuspensionReason = input.Action == "Suspend" ? input.Reason : null; u.TokenVersion++; }
-    db.Notifications.Add(new Notification { UserId = id, Title = input.Action, Message = input.Reason, Link = "/settings/profile" });
+    db.Notifications.Add(new Notification { UserId = id, Title = input.Action, Message = input.Reason, Link = "/settings/profile", Type = "account" });
     db.Reports.Add(new Report { ReporterId = Me, ReportedUserId = id, Reason = "Moderator action: " + input.Action, ResolutionNote = input.Reason, ModeratorId = Me, Status = "Resolved" });
     await db.SaveChangesAsync(); return Ok();
  }

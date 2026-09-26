@@ -12,30 +12,29 @@ import Stores from './Stores'
 import Home from './Home'
 import Cart from './Cart'
 import Help from './Help'
-import { GlobalSearch } from './Discovery'
 import { FeedbackHost } from './UI'
 import Preferences from './Preferences'
 import StudentDashboard from './StudentDashboard'
 import AdminWorkspace from './AdminWorkspace'
 import { useCart } from './cart'
 import Icon, { type IconName } from './Icon'
-import { Notifications, Security, PhotoUpload, StudentProfile, Management } from './Pages'
+import { Notifications, Security, StudentProfile, Management } from './Pages'
 import { api, go, signout } from './api'
 
 type NavItem = [string, string, IconName]
 type NavGroup = { label: string; items: NavItem[] }
 
 const personalGroups: NavGroup[] = [
-  { label: 'Overview', items: [['/dashboard','Dashboard','dashboard'],['/dashboard/listings','My listings','listing']] },
-  { label: 'Transactions', items: [['/dashboard/purchases','Purchases','purchase'],['/dashboard/sales','Sales','sale'],['/dashboard/offers','Offers','offer']] },
-  { label: 'Community', items: [['/dashboard/wishlist','Wishlist','heart'],['/dashboard/wanted','My wanted posts','wanted'],['/dashboard/reviews','Reviews & reports','star'],['/dashboard/notifications','Notifications','bell']] },
-  { label: 'Store', items: [['/dashboard/store','My store','store'],['/dashboard/store/inventory','Inventory','inventory']] },
+  { label: 'Overview', items: [['/dashboard','Dashboard','dashboard'],['/dashboard/listings','My items','listing']] },
+  { label: 'Orders & deals', items: [['/dashboard/purchases','My orders','purchase'],['/dashboard/sales','Incoming requests','sale'],['/dashboard/offers','Price offers','offer']] },
+  { label: 'Community', items: [['/dashboard/wishlist','Saved items','heart'],['/dashboard/wanted','My requests','wanted'],['/dashboard/reviews','Reviews & reports','star'],['/dashboard/notifications','Notifications','bell']] },
+  { label: 'Store', items: [['/dashboard/store','Store profile','store'],['/dashboard/store/inventory','Store items','inventory']] },
   { label: 'Account', items: [['/settings/profile','Profile','user'],['/settings/security','Security','lock'],['/settings/notifications','Notification settings','bell']] },
 ]
 
 const adminGroups: NavGroup[] = [
  {label:'Platform',items:[['/admin','Overview','dashboard'],['/admin/users','Users & roles','user']]},
- {label:'Marketplace',items:[['/admin/listings','Products & rentals','market'],['/admin/wanted','Wanted posts','wanted'],['/admin/stores','Student shops','store'],['/admin/transactions','All transactions','purchase'],['/admin/rentals','Rental management','clock']]},
+ {label:'Marketplace',items:[['/admin/listings','Products & rentals','market'],['/admin/wanted','Requests','wanted'],['/admin/stores','Student shops','store'],['/admin/transactions','All transactions','purchase'],['/admin/rentals','Rental management','clock']]},
  {label:'Trust & safety',items:[['/moderator/reports','Reports','shield'],['/admin/reviews','Reviews','star']]},
  {label:'Configuration',items:[['/admin/categories','Categories','listing'],['/admin/departments','Departments','settings'],['/admin/pickup-locations','Pickup locations','package']]},
  {label:'Account',items:[['/admin/notifications','Notifications','bell'],['/settings/profile','My profile','user'],['/settings/security','Security','lock'],['/settings/notifications','Notification settings','bell']]},
@@ -47,7 +46,7 @@ const moderatorGroups: NavGroup[] = [
 ]
 
 const mainNav: NavItem[] = [
-  ['/','Home','home'],['/marketplace','Shop','market'],['/rentals','Rent','clock'],['/giveaways','Giveaways','gift'],['/wanted','Wanted','wanted'],['/stores','Stores','store'],['/messages','Messages','message'],
+  ['/','Home','home'],['/marketplace','Shop','market'],['/wanted','Requests','wanted'],['/stores','Stores','store'],['/messages','Messages','message'],
 ]
 
 export default function App() {
@@ -89,14 +88,14 @@ export default function App() {
 
   let page
   if(path==='/') page=<Home token={token} firstName={profile?.firstName} admin={isAdmin}/>
-  else if(path==='/help'||path==='/about'||path==='/safety') page=<Help/>
-  else if(path==='/verification') page=<section className="feature-section verification-page"><span className="eyebrow">KNOW YOUR COMMUNITY</span><h1>What does verified mean?</h1><p>Students register with an allowed Premier University student email address. We send a six-digit code to that mailbox. A correct, unexpired code marks the email as verified and enables marketplace access.</p><ol><li>Use your permitted university email.</li><li>Enter the code within 10 minutes. Five incorrect attempts lock that code.</li><li>Sign in to buy, rent, sell, and chat.</li></ol><p>The badge confirms access to that email address. It is not a check against a university enrollment database or an identity guarantee.</p><p>For local demonstrations, Mailpit captures these emails instead of delivering them to real university inboxes. The setup administrator is provisioned separately.</p><a className="button button-primary" href={token?'/marketplace':'/register'}>{token?'Explore marketplace':'Create an account'} <Icon name="arrow"/></a></section>
-  else if(!token&&!authPage) page=<section className="feature-section sign-in-gate"><span className="gate-icon"><Icon name="lock"/></span><span className="eyebrow">VERIFIED STUDENTS ONLY</span><h1>Sign in to continue</h1><p>Marketplace activity is limited to verified Premier University accounts.</p><div className="quick-actions"><a className="button button-primary" href={`/login?next=${encodeURIComponent(path+location.search)}`}>Sign in</a><a className="button button-secondary" href="/register">Create account</a></div><a className="inline-link" href="/">Back to homepage</a></section>
+  else if(path==='/help'||path==='/about'||path==='/safety') page=<Help path={path}/>
+  else if(path==='/verification') page=<section className="feature-section verification-page"><span className="eyebrow">KNOW YOUR COMMUNITY</span><h1>What does verified mean?</h1><p>Students register with an allowed Premier University student email address. We send a six-digit code to that mailbox. A correct, unexpired code marks the email as verified and enables marketplace access.</p><ol><li>Use your permitted university email.</li><li>Enter the code within 10 minutes. Five incorrect attempts lock that code.</li><li>Sign in to buy, rent, sell, give items away, post requests, and chat.</li></ol><p>The badge confirms access to that email address. It is not a separate identity or enrollment check.</p><a className="button button-primary" href={token?'/marketplace':'/register'}>{token?'Browse Shop':'Create an account'} <Icon name="arrow"/></a></section>
+  else if(!token&&!authPage) page=<section className="feature-section sign-in-gate"><span className="gate-icon"><Icon name="lock"/></span><span className="eyebrow">VERIFIED STUDENTS ONLY</span><h1>Sign in to continue</h1><p>PremsCart is a campus marketplace for buying, renting, selling, giving away, and requesting items. Sign in with a verified Premier University account to continue.</p><div className="quick-actions"><a className="button button-primary" href={`/login?next=${encodeURIComponent(path+location.search)}`}>Sign in</a><a className="button button-secondary" href="/register">Create account</a></div><a className="inline-link" href="/">Back to homepage</a></section>
   else if(profileError&&!authPage) page=<section className="feature-section status-panel"><span className="gate-icon"><Icon name="shield"/></span><h1>We could not load your account</h1><p role="alert">{profileError}</p><button className="button button-primary" onClick={signout}>Sign in again</button></section>
   else if(token&&!profile&&!authPage) page=<Loader key={profileVersion} label="Loading your account…" onRetry={()=>setProfileVersion(v=>v+1)}/>
   else if(!protectedStaff) page=<section className="feature-section status-panel"><span className="gate-icon"><Icon name="shield"/></span><h1>Access restricted</h1><p>This page requires a campus management role.</p><a className="button button-secondary" href="/dashboard">Return to dashboard</a></section>
   else if(path==='/forgot-password') page=<Security recovery/>
-  else if(authPage) page=<><AuthPanel path={path}/><nav className="auth-links" aria-label="Account links"><a href="/login">Sign in</a><a href="/register">Register</a><a href="/verify-email">Verify email</a><a href="/forgot-password">Forgot password?</a></nav>{token&&<a className="button button-primary continue-dashboard" href="/dashboard">Continue to dashboard <Icon name="arrow"/></a>}</>
+  else if(authPage) page=<><AuthPanel path={path}/>{token&&<a className="button button-primary continue-dashboard" href="/dashboard">Continue to dashboard <Icon name="arrow"/></a>}</>
   else if(path==='/settings/notifications') page=<Preferences/>
   else if(path==='/settings/security') page=<Security/>
   else if(path==='/settings/profile') page=<ProfileSettings token={token}/>
@@ -111,7 +110,7 @@ export default function App() {
   else if(path.startsWith('/orders/')) page=<Transactions token={token} path={path}/>
   else if(['/dashboard/purchases','/dashboard/sales','/dashboard/offers'].includes(path)) page=<Transactions token={token} path={path}/>
   else if(path==='/dashboard/reviews') page=<Community token={token}/>
-  else if(path.startsWith('/stores')||path.startsWith('/dashboard/store')) page=<><Stores token={token} path={path}/>{path==='/dashboard/store'&&profile?.role==='Business Seller'&&<PhotoUpload store/>}</>
+  else if(path.startsWith('/stores')||path.startsWith('/dashboard/store')) page=<Stores token={token} path={path}/>
   else if(path.startsWith('/wanted')||['/dashboard/wishlist','/dashboard/wanted'].includes(path)) page=<StudentFeatures token={token} path={path}/>
   else if(path==='/marketplace'||path==='/rentals'||path==='/giveaways'||path.startsWith('/listings/')||path==='/dashboard/listings') page=<Marketplace token={token} path={path}/>
   else page=<section className="feature-section status-panel"><h1>Page not found</h1><p>The page you requested does not exist.</p><a className="button button-primary" href="/">Go home</a></section>
@@ -123,9 +122,9 @@ export default function App() {
         <button className="mobile-menu-button icon-button" aria-label={menuOpen?'Close navigation':'Open navigation'} aria-expanded={menuOpen} onClick={()=>setMenuOpen(v=>!v)}><Icon name={menuOpen?'close':'menu'}/></button>
         <nav className={`main-nav ${menuOpen?'open':''}`} aria-label="Main navigation">{(isAdmin?([['/admin','Workspace','dashboard'],['/marketplace','View marketplace','market']] as NavItem[]):mainNav).filter(([url])=>token||url!=='/messages').map(([url,label,icon])=><a key={url} aria-current={path===url||(url!=='/'&&path.startsWith(url))?'page':undefined} href={url}><Icon name={icon}/><span>{label}</span></a>)}</nav>
         <div className="topbar-tools">
-          <GlobalSearch userId={profile?.id}/>
-          {token&&!isAdmin&&!isModerator&&<a className="header-post button button-primary compact" href="/listings/new"><Icon name="plus"/> Post</a>}
-          <a className="icon-button cart-nav" href={isAdmin?'/admin/transactions':'/cart'} aria-label={isAdmin?'All transactions':`Cart, ${cart.length} items`} title={isAdmin?'Transactions':'Your cart'}><Icon name="purchase"/>{!isAdmin&&cart.length>0&&<b className="badge">{cart.length}</b>}</a>
+          {token&&!isAdmin&&!isModerator&&<a className="header-post button button-primary compact" href="/listings/new"><Icon name="plus"/> Post item</a>}
+          {token&&!isAdmin&&!isModerator&&<a className="icon-button wishlist-nav" href="/dashboard/wishlist" aria-label="Wishlist" title="Wishlist"><Icon name="heart"/></a>}
+          {!isModerator&&<a className="icon-button cart-nav" href={isAdmin?'/admin/transactions':'/cart'} aria-label={isAdmin?'All transactions':`Cart, ${cart.length} items`} title={isAdmin?'Transactions':'Your cart'}><Icon name="purchase"/>{!isAdmin&&cart.length>0&&<b className="badge">{cart.length}</b>}</a>}
           <button className="icon-button" onClick={()=>setDark(!dark)} aria-label={dark?'Use light theme':'Use dark theme'} title={dark?'Use light theme':'Use dark theme'}><Icon name={dark?'sun':'moon'}/></button>
           {token?<>
             <a className="icon-button notification-button" href={isAdmin?'/admin/notifications':'/dashboard/notifications'} aria-label={`${unread} unread notifications`} title="Notifications"><Icon name="bell"/>{unread>0&&<b className="badge">{unread>9?'9+':unread}</b>}</a>
@@ -136,11 +135,11 @@ export default function App() {
     </header>
 
     <div className={sidebar&&token?'workspace-layout':''}>
-      {sidebar&&token&&<aside className="dashboard-nav" aria-label="Dashboard navigation"><a className="sidebar-brand" href={isAdmin?'/admin':isModerator?'/moderator':'/dashboard'}><span className="sidebar-logo"><Icon name={isAdmin?'settings':isModerator?'shield':'dashboard'}/></span><span><strong>{isAdmin?'Administration':isModerator?'Moderation':'My PremsCart'}</strong><small>{isAdmin?'Manage the platform':isModerator?'Keep campus safe':'Your campus activity'}</small></span></a>{sidebarGroups.map(group=><div className="sidebar-group" key={group.label}><span className="sidebar-label">{group.label}</span>{group.items.map(([url,label,icon])=><a key={url} href={url} aria-current={path===url?'page':undefined}><Icon name={icon}/><span>{label}</span>{url==='/dashboard/notifications'&&unread>0&&<b className="nav-count">{unread}</b>}</a>)}</div>)}</aside>}
+      {sidebar&&token&&<aside className="dashboard-nav" aria-label="Dashboard navigation"><a className="sidebar-brand" href={isAdmin?'/admin':isModerator?'/moderator':'/dashboard'}><span className="sidebar-logo"><Icon name={isAdmin?'settings':isModerator?'shield':'dashboard'}/></span><span><strong>{isAdmin?'Administration':isModerator?'Moderation':'My PremsCart'}</strong><small>{isAdmin?'Manage the platform':isModerator?'Keep campus safe':'Everything has its own place'}</small></span></a>{sidebarGroups.map(group=><div className="sidebar-group" key={group.label}><span className="sidebar-label">{group.label}</span>{group.items.filter(([url])=>url!=='/dashboard/store/inventory'||profile?.role==='Business Seller').map(([url,label,icon])=><a key={url} href={url} aria-current={path===url?'page':undefined}><Icon name={icon}/><span>{label}</span>{url==='/dashboard/notifications'&&unread>0&&<b className="nav-count">{unread}</b>}</a>)}</div>)}</aside>}
       <main id="main-content" tabIndex={-1} key={routeKey} className={path==='/'?'home-main':''}>{page}</main>
     </div>
 
-    {!isAdmin&&!isModerator&&<nav className="mobile-bottom-nav" aria-label="Quick navigation">{([['/','Home','home'],['/marketplace','Browse','search'],['/listings/new','Sell','plus'],['/messages','Messages','message'],[token?'/dashboard':'/login','Account','user']] as NavItem[]).map(([href,label,icon])=><a key={href} href={href} aria-current={path===href?'page':undefined}><Icon name={icon}/><span>{label}</span></a>)}</nav>}
-    <footer className="site-footer editorial-footer"><div className="footer-top"><div className="footer-story"><a className="footer-brand" href="/"><img src="/brand/premscart-logo.jpeg" alt=""/><span><strong>PremsCart</strong><small>Good things, closer to you.</small></span></a><p>A marketplace for the things you need<br/>and the people you meet along the way.</p><span className="footer-campus"><span/> Made for Premier University</span></div><nav aria-label="Explore"><h3>Explore</h3><a href="/marketplace">Shop the campus</a><a href="/rentals">Rent something</a><a href="/giveaways">Find a giveaway</a><a href="/stores">Student stores</a></nav><nav aria-label="Community"><h3>Community</h3><a href="/wanted">Wanted posts</a><a href={isAdmin?'/admin/listings':'/listings/new'}>{isAdmin?'Manage products':'Post a listing'}</a><a href="/messages">Conversations</a><a href="/verification">How verification works</a><a href="/help">Help & campus safety</a><a href="/about">About PremsCart</a></nav><nav aria-label="Your space"><h3>Your space</h3><a href={isAdmin?'/admin':token?'/dashboard':'/login'}>{isAdmin?'Admin workspace':token?'Your dashboard':'Sign in'}</a><a href={isAdmin?'/admin/transactions':'/cart'}>{isAdmin?'All transactions':'Your cart'}</a><a href={token?'/settings/profile':'/register'}>{token?'Profile & settings':'Join PremsCart'}</a></nav></div><div className="footer-bottom"><span>© {new Date().getFullYear()} PremsCart. A campus community project.</span><span>Main gate · Canteen · Library <Icon name="package"/></span></div></footer>
+    {!isAdmin&&!isModerator&&<nav className="mobile-bottom-nav" aria-label="Quick navigation">{([['/','Home','home'],['/marketplace','Shop','search'],['/listings/new','Post','plus'],['/messages','Messages','message'],[token?'/dashboard':'/login','Account','user']] as NavItem[]).map(([href,label,icon])=><a key={href} href={href} aria-current={path===href?'page':undefined}><Icon name={icon}/><span>{label}</span></a>)}</nav>}
+    <footer className="site-footer editorial-footer"><div className="footer-top"><div className="footer-story"><a className="footer-brand" href="/"><img src="/brand/premscart-logo.jpeg" alt=""/><span><strong>PremsCart</strong><small>Good things, closer to you.</small></span></a><p>Buy, rent, sell, or give things away with other verified Premier University students.</p><span className="footer-campus"><span/> Made for Premier University</span></div><nav aria-label="Explore"><h3>Explore</h3><a href="/marketplace">Shop campus items</a><a href="/rentals">Browse rentals</a><a href="/giveaways">Browse giveaways</a><a href="/stores">Student stores</a></nav><nav aria-label="Community"><h3>Community</h3><a href="/wanted">Requests</a><a href={isAdmin?'/admin/listings':'/listings/new'}>{isAdmin?'Manage products':'Post an item'}</a><a href="/messages">Messages</a><a href="/verification">How verification works</a><a href="/help">Help & campus safety</a><a href="/about">About PremsCart</a></nav><nav aria-label="Your space"><h3>Your space</h3><a href={isAdmin?'/admin':token?'/dashboard':'/login'}>{isAdmin?'Admin workspace':token?'Your dashboard':'Sign in'}</a><a href={isAdmin?'/admin/transactions':'/cart'}>{isAdmin?'All transactions':'Your cart'}</a><a href={token?'/settings/profile':'/register'}>{token?'Profile & settings':'Join PremsCart'}</a></nav></div><div className="footer-bottom"><span>© {new Date().getFullYear()} PremsCart. A campus community project.</span><span>Main gate · Canteen · Library <Icon name="package"/></span></div></footer>
   </div></RequestProvider>
 }

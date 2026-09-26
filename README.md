@@ -124,3 +124,7 @@ For UI regression checks, see `tests/ui-smoke.cjs`. Install its optional depende
 Rent supports the simple lifecycle described in the shopping notes. Exchange remains unsupported. The project does not process payments. Optional chat attachments, blocking and coupons are not included. Wanted posts link to the requester's student profile; chat remains listing-based. Searchable admin lists and notification history are deliberately simple rather than enterprise-scale.
 
 The frontend production build and mocked browser checks passed during this update. C# source syntax was checked. The migration SQL passed a PGlite PostgreSQL-engine check. **The .NET SDK, standalone PostgreSQL server, and Docker were unavailable, so a backend build, EF migration application, and live multi-account smoke test have not been executed here.** Run the commands above before submission. See `COMPLETION_NOTES.md` for migration and implementation details.
+
+## Render showcase data
+
+For a short-lived Render demonstration with a much fuller dataset, see **[RENDER_UPDATE_AND_DEMO_DATA.md](RENDER_UPDATE_AND_DEMO_DATA.md)**. Set `DemoData__Enabled=true` on the backend service to seed verified demo users, stores, roughly 40 listings, requests, offers, orders, rentals, reviews, messages, notifications and moderation examples. Demo listing photos use external CC0/public-domain Wikimedia Commons URLs so they survive free Render filesystem resets.

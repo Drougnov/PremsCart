@@ -97,9 +97,10 @@ export default function AuthPanel({path}: {path:string}) {
         {(mode === 'register' || mode === 'login') && <label>Password<input required minLength={mode === 'register' ? 8 : undefined} type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} /></label>}
         {mode === 'verify' && <label>Six-digit verification code<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value)} /></label>}
         {mode === 'profile' && <p className="profile-detail">{profile?.universityEmail}<br />{profile?.department} · Batch {profile?.batch}</p>}
-        <button className="primary-button" type="submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'register' ? 'Register' : mode === 'verify' ? 'Verify email' : mode === 'profile' ? 'Save profile' : 'Sign in'}</button>
+        <button className="primary-button" type="submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify email' : mode === 'profile' ? 'Save profile' : 'Sign in'}</button>
       </form>
       {mode === 'verify' && <button type="button" className="text-button" disabled={busy || !email} onClick={resend}>Send a new code</button>}
+      {mode === 'login' && <div className="auth-links"><a href="/forgot-password">Forgot password?</a><a href="/verify-email">Enter verification code</a></div>}
       {!profile && <div className="auth-switch">{mode === 'login' ? <>New student? <button onClick={() => switchMode('register')}>Create an account</button></> : <>Already registered? <button onClick={() => switchMode('login')}>Sign in</button></>}{mode !== 'verify' && mode !== 'login' && <> · <button onClick={() => switchMode('verify')}>Enter a code</button></>}</div>}
     </div>
   </section>

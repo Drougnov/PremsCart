@@ -78,7 +78,7 @@ public class AccountController(PremsCartDbContext db, IPasswordHasher<User> hash
         return PhysicalFile(path, name.EndsWith("png") ? "image/png" : name.EndsWith("webp") ? "image/webp" : "image/jpeg");
     }
     [HttpGet("api/notifications")]
-    public async Task<IActionResult> Notifications() => Ok(new { unread = await db.Notifications.CountAsync(x => x.UserId == Me && !x.IsRead), items = await db.Notifications.Where(x => x.UserId == Me).OrderByDescending(x => x.Id).Take(100).Select(x => new { x.Id, x.Title, x.Message, x.Link, x.IsRead, x.CreatedAt }).ToListAsync() });
+    public async Task<IActionResult> Notifications() => Ok(new { unread = await db.Notifications.CountAsync(x => x.UserId == Me && !x.IsRead), items = await db.Notifications.Where(x => x.UserId == Me).OrderByDescending(x => x.Id).Take(100).Select(x => new { x.Id, x.Title, x.Message, x.Link, x.Type, x.IsRead, x.CreatedAt }).ToListAsync() });
     [HttpPost("api/notifications/{id:int}/read")]
     public async Task<IActionResult> Read(int id) { var n = await db.Notifications.SingleOrDefaultAsync(x => x.Id == id && x.UserId == Me); if (n == null) return NotFound(); n.IsRead = true; await db.SaveChangesAsync(); return Ok(); }
     [HttpPost("api/notifications/read-all")]

@@ -1,9 +1,9 @@
-import { useLoad, Metrics } from "./Pages";
+import { useLoad, Metrics, PhotoUpload } from "./Pages";
 import { go } from "./api";
 import { useEffect, useState, type FormEvent } from "react";
 import { PrivateImage } from "./Media";
 import { ProductCard, useWishlist } from "./catalog";
-import { Skeleton, EmptyState, ErrorState, toast, confirmAction } from "./UI";
+import { Skeleton, EmptyState, ErrorState, toast } from "./UI";
 import Icon from "./Icon";
 
 type StoreSummary = {
@@ -21,8 +21,12 @@ type StoreSummary = {
 type StoreProduct = {
   productId: number;
   quantity: number;
+  isVisible: boolean;
+  sortOrder: number;
   title: string;
   price: number | null;
+  allowRent?: boolean;
+  rentalPrice?: number | null;
   transactionType: string;
   status?: string;
   condition?: string;
@@ -35,14 +39,8 @@ type MyStore = {
   id: number;
   storeName: string;
   description: string | null;
+  logo?: string | null;
   ownerId: number;
-};
-type Listing = {
-  allowRent?: boolean;
-  id: number;
-  title: string;
-  status: string;
-  transactionType: string;
 };
 
 async function api<T>(
@@ -80,8 +78,7 @@ export default function Stores({
   );
   const [storeSearch, setStoreSearch] = useState(""),
     [productSearch, setProductSearch] = useState(""),
-    [productType, setProductType] = useState(""),
-    [lowStock, setLowStock] = useState(false);
+    [productType, setProductType] = useState("");
   const wish = useWishlist();
   const [role, setRole] = useState("");
   const [stores, setStores] = useState<StoreSummary[]>([]);
@@ -90,28 +87,24 @@ export default function Stores({
   const [selected, setSelected] = useState<Store | null>(null);
   const [mine, setMine] = useState<MyStore | null>(null);
   const [inventory, setInventory] = useState<StoreProduct[]>([]);
-  const [listings, setListings] = useState<Listing[]>([]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState("1");
   const [stockEdits, setStockEdits] = useState<Record<number, string>>({});
+  const [draggingId, setDraggingId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   async function loadMine(authToken = token) {
-    const [myStore, items, ownListings] = await Promise.all([
+    const [myStore, items] = await Promise.all([
       api<MyStore>("/api/stores/mine", authToken),
       api<StoreProduct[]>("/api/stores/mine/products", authToken),
-      api<Listing[]>("/api/products/mine", authToken),
     ]);
     setMine(myStore);
     setName(myStore.storeName);
     setDescription(myStore.description ?? "");
     setInventory(items);
-    setListings(ownListings);
   }
   useEffect(() => {
     setRole("");
@@ -194,6 +187,35 @@ export default function Stores({
       setBusy(false);
     }
   }
+  function saveInventoryOrder(next: StoreProduct[]) {
+    if (busy) return;
+    setInventory(next);
+    setDraggingId(null);
+    void action(
+      () => api('/api/stores/mine/products/order', token, 'PUT', { productIds: next.map(x => x.productId) }),
+      'Store item order saved.'
+    );
+  }
+  function reorderInventory(targetId: number) {
+    if (draggingId == null || draggingId === targetId || busy) return;
+    const from = inventory.findIndex(x => x.productId === draggingId);
+    const to = inventory.findIndex(x => x.productId === targetId);
+    if (from < 0 || to < 0) return;
+    const next = [...inventory];
+    const [moved] = next.splice(from,1);
+    next.splice(to,0,moved);
+    saveInventoryOrder(next);
+  }
+  function moveInventory(productId: number, direction: -1 | 1) {
+    if (busy) return;
+    const from = inventory.findIndex(x => x.productId === productId);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= inventory.length) return;
+    const next = [...inventory];
+    [next[from], next[to]] = [next[to], next[from]];
+    saveInventoryOrder(next);
+  }
+
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -251,13 +273,21 @@ export default function Stores({
   }
   return (
     <section id="stores" className="feature-section stores-section">
-      <div className="section-heading">
+      {path === "/stores" && <div className="section-heading">
         <div>
           <span className="eyebrow">STUDENT BUSINESSES</span>
-          <h2>Campus stores</h2>
+          <h1>Campus stores</h1>
           <p>Discover the small businesses built by your classmates.</p>
         </div>
-      </div>
+      </div>}
+      {path.startsWith("/dashboard/store") && <div className="page-heading">
+        <div>
+          <span className="eyebrow">YOUR STOREFRONT</span>
+          <h1>{mine ? "My store" : "Create your store"}</h1>
+          <p>{path === "/dashboard/store/inventory" ? "Choose which posted items appear in your store and arrange their order." : "Update the information students see on your public store page."}</p>
+        </div>
+        {mine&&<a className="button button-secondary compact" href={`/stores/${mine.id}`}>View public store <Icon name="arrow"/></a>}
+      </div>}
       {!token ? (
         <p className="feature-empty">Sign in to browse stores or create one.</p>
       ) : (
@@ -321,29 +351,30 @@ export default function Stores({
                   />
                 </label>
                 <label>
-                  <span className="sr-only">Store listing type</span>
+                  <span className="sr-only">Store item type</span>
                   <select
-                    aria-label="Store listing type"
+                    aria-label="Store item type"
                     value={productType}
                     onChange={(e) => setProductType(e.target.value)}
                   >
                     <option value="">All products</option>
                     <option value="Sell">For sale</option>
-                    <option value="Giveaway">Giveaways</option>
+                    <option value="Rent">For rent</option>
+                    <option value="Giveaway">Giveaway</option>
                   </select>
                 </label>
-                <span>{selected.products.length} available listings</span>
+                <span>{selected.products.length} item{selected.products.length===1?"":"s"} in this store</span>
               </div>
               {selected.products.filter(
                 (p) =>
-                  (!productType || p.transactionType === productType) &&
+                  (!productType || p.transactionType === productType || (productType === "Rent" && p.allowRent)) &&
                   p.title.toLowerCase().includes(productSearch.toLowerCase()),
               ).length ? (
                 <div className="catalog-grid">
                   {selected.products
                     .filter(
                       (p) =>
-                        (!productType || p.transactionType === productType) &&
+                        (!productType || p.transactionType === productType || (productType === "Rent" && p.allowRent)) &&
                         p.title
                           .toLowerCase()
                           .includes(productSearch.toLowerCase()),
@@ -366,7 +397,7 @@ export default function Stores({
                 </div>
               ) : (
                 <EmptyState
-                  title="No products here just yet."
+                  title="No items here yet."
                   message="Try another search or explore other student stores."
                   href="/stores"
                   label="Explore stores"
@@ -415,7 +446,7 @@ export default function Stores({
                         {s.description || "Good things from your classmates."}
                       </p>
                       <small>
-                        {s.ownerName} · {s.productCount} available listings
+                        {s.ownerName} · {s.productCount} item{s.productCount===1?"":"s"}
                       </small>
                       <a
                         className="button button-secondary"
@@ -429,9 +460,9 @@ export default function Stores({
               ) : (
                 <EmptyState
                   title="A little room for a new student business."
-                  message="No stores match your search. Explore listings or create your own campus shop."
+                  message="No stores match your search. Browse campus items or create your own store."
                   href="/marketplace"
-                  label="Explore marketplace"
+                  label="Browse items"
                   icon="store"
                 />
               )}
@@ -459,207 +490,55 @@ export default function Stores({
           {path.startsWith("/dashboard/store") &&
             (role === "Student" || role === "Business Seller") && (
               <div className="community-form">
-                <h3>
-                  {mine ? "Manage my store" : "Create your student store"}
-                </h3>
+                <div className="panel-heading store-management-heading"><div><h2>{path === "/dashboard/store/inventory" && mine ? "Store items" : mine ? "Store information" : "Store information"}</h2><p>{path === "/dashboard/store/inventory" && mine ? "Show or hide items and control the order shoppers see." : mine ? "Keep your logo, store name, and description together in one place." : "Start with a name and short description. Your posted items will appear automatically."}</p></div></div>
                 {(path !== "/dashboard/store/inventory" || !mine) && (
-                  <form className="store-form" onSubmit={saveProfile}>
-                    <label>
-                      Store name
-                      <input
-                        required
-                        maxLength={100}
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Description
-                      <textarea
-                        maxLength={1000}
-                        rows={3}
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                      />
-                    </label>
-                    <button disabled={busy} className="market-action">
-                      {busy
-                        ? "Saving…"
-                        : mine
-                          ? "Save store profile"
-                          : "Create store"}
-                    </button>
-                  </form>
+                  <section className="store-information-panel">
+                    {mine&&<div className="store-logo-editor"><div className="store-logo-preview"><PrivateImage url={mine.logo} token={token} alt={`${mine.storeName} logo`}/></div><PhotoUpload store onSaved={()=>void loadMine()}/></div>}
+                    <form className="store-form" onSubmit={saveProfile}>
+                      <label>Store name<input required maxLength={100} value={name} onChange={(e) => setName(e.target.value)}/></label>
+                      <label>Description<textarea maxLength={1000} rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Tell students what your store offers."/></label>
+                      <button disabled={busy} className="button button-primary">{busy ? "Saving…" : mine ? "Save store information" : "Create store"}</button>
+                    </form>
+                  </section>
                 )}
                 {mine && (
                   <>
-                    {summary.data && <Metrics data={summary.data} />}
-                    <p>
-                      <a href={`/stores/${mine.id}`}>Visit my store →</a>
-                    </p>
-                    <p>
-                      <a href="/dashboard/store/inventory">
-                        Manage inventory →
-                      </a>
-                    </p>
+                    {path === "/dashboard/store" && <>
+                      {summary.data && <Metrics data={summary.data} />}
+                      
+                    </>}
                     {path === "/dashboard/store/inventory" && (
-                      <>
-                        <h3>Inventory</h3>
-                        <label className="check-field">
-                          <input
-                            type="checkbox"
-                            checked={lowStock}
-                            onChange={(e) => setLowStock(e.target.checked)}
-                          />
-                          Show low stock only (fewer than 3)
-                        </label>
-                        <p>
-                          {inventory.filter((i) => i.quantity < 3).length}{" "}
-                          low-stock listings
-                        </p>
-                        <p>
-                          Create a marketplace listing first, then add it to
-                          your store.
-                        </p>
-                        <div className="transaction-buttons">
-                          <label>
-                            My listing
-                            <select
-                              value={productId}
-                              onChange={(e) => setProductId(e.target.value)}
-                            >
-                              <option value="">Select available listing</option>
-                              {listings
-                                .filter(
-                                  (p) =>
-                                    p.status === "Available" &&
-                                    p.transactionType !== "Rent" && !p.allowRent &&
-                                    !inventory.some(
-                                      (i) => i.productId === p.id,
-                                    ),
-                                )
-                                .map((p) => (
-                                  <option value={p.id} key={p.id}>
-                                    {p.title}
-                                  </option>
-                                ))}
-                            </select>
-                          </label>
-                          <label>
-                            Quantity
-                            <input
-                              type="number"
-                              min="1"
-                              max="10000"
-                              value={quantity}
-                              onChange={(e) => setQuantity(e.target.value)}
-                            />
-                          </label>
-                          <button
-                            disabled={busy || !productId}
-                            onClick={() => {
-                              void action(async () => {
-                                await api(
-                                  "/api/stores/mine/products",
-                                  token,
-                                  "POST",
-                                  {
-                                    productId: Number(productId),
-                                    quantity: Number(quantity),
-                                  },
-                                );
-                                setProductId("");
-                              }, "Product added to store.");
-                            }}
-                          >
-                            Add to store
-                          </button>
-                        </div>
-                        {inventory
-                          .filter((item) => !lowStock || item.quantity < 3)
-                          .map((item) => (
-                            <div
-                              className="store-inventory-row"
+                      <section className="store-merchandising">
+                        <div className="panel-heading"><div><span className="eyebrow">YOUR STOREFRONT</span><h3>Arrange store items</h3><p>Every item you post is added here automatically. Drag items to change their order, or hide an item from your store without deleting the post.</p></div></div>
+                        {!inventory.length ? <EmptyState title="Your store has no items yet." message="Post an item and it will be added to your store automatically." href="/listings/new" label="Post an item" icon="store"/> : <div className="store-merch-list" aria-label="Store items in display order">
+                          {inventory.map((item,index) => {
+                            const singleItem = item.transactionType === 'Rent' || !!item.allowRent;
+                            return <article
+                              className={`store-merch-row ${item.isVisible?'visible':'hidden'} ${draggingId===item.productId?'dragging':''}`}
                               key={item.productId}
+                              draggable={!busy}
+                              onDragStart={() => setDraggingId(item.productId)}
+                              onDragEnd={() => setDraggingId(null)}
+                              onDragOver={e => e.preventDefault()}
+                              onDrop={e => { e.preventDefault(); reorderInventory(item.productId) }}
                             >
-                              <div>
-                                <strong>{item.title}</strong>
-                                <p>
-                                  {item.status} · {item.quantity} available
-                                </p>
+                              <button type="button" className="drag-handle" disabled={busy} aria-label={`Move ${item.title}. Drag to reorder`} title="Drag to reorder"><Icon name="menu"/><span>{index+1}</span></button>
+                              <div className="store-merch-photo"><PrivateImage url={item.imageUrl} token={token} alt=""/></div>
+                              <div className="store-merch-copy"><div className="store-merch-title"><strong>{item.title}</strong><span className={`store-display-state ${item.isVisible?'shown':'hidden'}`}>{item.isVisible?'Shown in store':'Hidden from store'}</span></div><p>{item.transactionType==='Giveaway'?'Giveaway':item.transactionType==='Rent'?`Rent · Tk ${item.price ?? 0}/day`:item.allowRent?`For sale · also rentable`: 'For sale'} · {item.status}</p><small>{item.categoryName}{item.condition?` · ${item.condition}`:''}</small></div>
+                              <div className="store-merch-actions">
+                                <div className="store-order-buttons" aria-label={`Change ${item.title} position`}>
+                                  <button type="button" disabled={busy || index === 0} onClick={() => moveInventory(item.productId, -1)} aria-label={`Move ${item.title} up`}><Icon name="arrow"/>Up</button>
+                                  <button type="button" disabled={busy || index === inventory.length - 1} onClick={() => moveInventory(item.productId, 1)} aria-label={`Move ${item.title} down`}><Icon name="arrow"/>Down</button>
+                                </div>
+                                <button type="button" className={`visibility-button ${item.isVisible?'on':''}`} disabled={busy} aria-pressed={item.isVisible} onClick={() => void action(() => api(`/api/stores/mine/products/${item.productId}/display`, token, 'PUT', { isVisible: !item.isVisible }), item.isVisible?'Item hidden from your store.':'Item shown in your store.')}><Icon name={item.isVisible?'check':'close'}/>{item.isVisible?'Hide from store':'Show in store'}</button>
+                                {!singleItem ? <div className="stock-editor"><label>Stock<input type="number" min="0" max="10000" step="1" inputMode="numeric" value={stockEdits[item.productId] ?? String(item.quantity)} onChange={e => setStockEdits(v => ({...v,[item.productId]:e.target.value}))}/></label><button type="button" disabled={busy || (stockEdits[item.productId]??String(item.quantity))===String(item.quantity)} onClick={() => void action(async () => { await api(`/api/stores/mine/products/${item.productId}`,token,'PUT',{quantity:Number(stockEdits[item.productId]??item.quantity)}); setStockEdits(v=>{const n={...v};delete n[item.productId];return n}) },'Stock updated.')}>Save stock</button></div> : <span className="single-item-note"><Icon name="package"/>Single item · availability follows the post</span>}
+                                <a className="button button-secondary compact" href={`/listings/${item.productId}/edit`}>Edit item</a>
                               </div>
-                              <div className="transaction-buttons">
-                                <label>
-                                  In stock
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="10000"
-                                    value={
-                                      stockEdits[item.productId] ??
-                                      String(item.quantity)
-                                    }
-                                    onChange={(e) =>
-                                      setStockEdits((v) => ({
-                                        ...v,
-                                        [item.productId]: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                </label>
-                                <button
-                                  disabled={busy}
-                                  onClick={() => {
-                                    void action(async () => {
-                                      await api(
-                                        `/api/stores/mine/products/${item.productId}`,
-                                        token,
-                                        "PUT",
-                                        {
-                                          quantity: Number(
-                                            stockEdits[item.productId] ??
-                                              item.quantity,
-                                          ),
-                                        },
-                                      );
-                                      setStockEdits((v) => {
-                                        const next = { ...v };
-                                        delete next[item.productId];
-                                        return next;
-                                      });
-                                    }, "Stock updated.");
-                                  }}
-                                >
-                                  Save stock
-                                </button>
-                                <button
-                                  disabled={busy}
-                                  onClick={async () => {
-                                    if (
-                                      await confirmAction(
-                                        "Remove this item from your store?",
-                                        item.title,
-                                        "Remove from store",
-                                        true,
-                                      )
-                                    )
-                                      void action(
-                                        () =>
-                                          api(
-                                            `/api/stores/mine/products/${item.productId}`,
-                                            token,
-                                            "DELETE",
-                                          ),
-                                        "Listing removed from store.",
-                                      );
-                                  }}
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                      </>
+                            </article>
+                          })}
+                        </div>}
+                        <p className="helper-copy store-drag-help"><Icon name="menu"/> Tip: drag the handle, or use the Up and Down buttons on a phone or keyboard. Changes are saved automatically.</p>
+                      </section>
                     )}
                   </>
                 )}

@@ -67,14 +67,14 @@ public sealed class CommunityController(PremsCartDbContext db) : ControllerBase
     {
         if ((new int?[] { input.ProductId, input.UserId, input.ReviewId, input.MessageId }.Count(x => x.HasValue) != 1) ||
             string.IsNullOrWhiteSpace(input.Reason) || input.Reason.Trim().Length > 1000)
-            return BadRequest(new { error = "Choose one listing or user and give a reason up to 1,000 characters." });
+            return BadRequest(new { error = "Choose one item or user and give a reason up to 1,000 characters." });
         if (input.ProductId.HasValue && !await db.Products.AnyAsync(p => p.Id == input.ProductId))
-            return NotFound(new { error = "Listing not found." });
+            return NotFound(new { error = "Item not found." });
         if (input.UserId.HasValue && !await db.Users.AnyAsync(u => u.Id == input.UserId))
             return NotFound(new { error = "User not found." });
         if (input.UserId == Me || input.ProductId.HasValue &&
             await db.Products.AnyAsync(p => p.Id == input.ProductId && p.SellerId == Me))
-            return BadRequest(new { error = "You cannot report yourself or your own listing." });
+            return BadRequest(new { error = "You cannot report yourself or your own item." });
         if (input.ReviewId.HasValue && !await db.Reviews.AnyAsync(x => x.Id == input.ReviewId && !x.IsHidden)) return NotFound();
         if (input.MessageId.HasValue && !await db.Messages.AnyAsync(x => x.Id == input.MessageId && (x.Conversation.BuyerId == Me || x.Conversation.SellerId == Me))) return NotFound();
         var report = new Report { ReviewId = input.ReviewId, MessageId = input.MessageId, ReporterId = Me, ReportedProductId = input.ProductId,
@@ -106,18 +106,18 @@ public sealed class CommunityController(PremsCartDbContext db) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(input.Note) || input.Note.Length > 1000) return BadRequest(new { error = "Enter a resolution reason up to 1,000 characters." });
         if (input.Decision is not ("Dismiss" or "Resolve" or "Hide listing" or "Hide content"))
-            return BadRequest(new { error = "Choose Dismiss, Resolve, or Hide listing." });
+            return BadRequest(new { error = "Choose Dismiss, Resolve, or Hide item." });
         var report = await db.Reports.SingleOrDefaultAsync(r => r.Id == id);
         if (report is null) return NotFound();
         if (report.Status != "Pending") return Conflict(new { error = "Report was already reviewed." });
         if (input.Decision == "Hide listing")
         {
             if (report.ReportedProductId is not int productId)
-                return BadRequest(new { error = "This report is about a user, not a listing." });
+                return BadRequest(new { error = "This report is about a user, not an item." });
             var product = await db.Products.FindAsync(productId);
             if (product is null) return NotFound();
             product.IsHidden = true;
-            db.Notifications.Add(new Notification { UserId = product.SellerId, Title = "Listing hidden", Message = input.Note ?? report.Reason, Link = "/dashboard/listings" });
+            db.Notifications.Add(new Notification { UserId = product.SellerId, Title = "Item hidden", Message = input.Note ?? report.Reason, Link = "/dashboard/listings", Type = "moderation" });
         }
         if (input.Decision == "Hide content") {
             if (report.ReviewId is int rid) { var r = await db.Reviews.FindAsync(rid); if (r != null) r.IsHidden = true; }
@@ -125,7 +125,7 @@ public sealed class CommunityController(PremsCartDbContext db) : ControllerBase
             else return BadRequest(new { error = "This report is not about a review or message." });
         }
         report.ResolutionAction = input.Decision; report.ResolutionNote = input.Note?.Trim(); report.ModeratorId = Me;
-        db.Notifications.Add(new Notification { UserId = report.ReporterId, Title = "Report reviewed", Message = input.Decision + ": " + input.Note, Link = "/dashboard/reviews" });
+        db.Notifications.Add(new Notification { UserId = report.ReporterId, Title = "Report reviewed", Message = input.Decision + ": " + input.Note, Link = "/dashboard/reviews", Type = "reports" });
         report.Status = input.Decision == "Dismiss" ? "Dismissed" : "Resolved";
         await db.SaveChangesAsync();
         return Ok(new { report.Id, report.Status });

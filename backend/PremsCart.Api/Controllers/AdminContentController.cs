@@ -19,12 +19,12 @@ public class AdminContentController(PremsCartDbContext db) : ControllerBase {
     public async Task<IActionResult> Reviews() => Ok(await db.Reviews.OrderByDescending(x => x.Id).Select(x => new { x.Id, x.Rating, x.Comment, x.ReviewerId, x.ReviewedUserId, x.IsHidden }).ToListAsync());
     [HttpPut("content/{kind}/{id:int}")]
     public async Task<IActionResult> Edit(string kind, int id, ContentEdit input) {
-        if (string.IsNullOrWhiteSpace(input.Title) || string.IsNullOrWhiteSpace(input.Description) || input.Price < 0 || input.Price > 9999999999.99m || (input.Price.HasValue && decimal.Round(input.Price.Value,2) != input.Price)) return BadRequest(new { error = "Enter valid text and a non-negative price with two decimal places." });
+        if (string.IsNullOrWhiteSpace(input.Title) || string.IsNullOrWhiteSpace(input.Description) || input.Price < 0 || input.Price > 9999999999m || (input.Price.HasValue && decimal.Truncate(input.Price.Value) != input.Price)) return BadRequest(new { error = "Enter valid text and a non-negative whole-Taka price." });
         switch(kind) {
             case "listings":
                 var p = await db.Products.FindAsync(id); if(p == null)return NotFound();
                 if (p.TransactionType != "Giveaway" && (input.Price is null or <= 0)) return BadRequest(new { error = "Sales and rentals need a positive price." });
-                if (await db.Orders.AnyAsync(x=>x.ProductId==id && x.Status!="Completed" && x.Status!="Cancelled") || await db.Offers.AnyAsync(x=>x.ProductId==id && (x.Status=="Pending"||x.Status=="Countered"))) return Conflict(new {error="Finish active requests before editing listing terms."});
+                if (await db.Orders.AnyAsync(x=>x.ProductId==id && x.Status!="Completed" && x.Status!="Cancelled") || await db.Offers.AnyAsync(x=>x.ProductId==id && (x.Status=="Pending"||x.Status=="Countered"))) return Conflict(new {error="Finish active requests before editing this item."});
                 p.Title=input.Title.Trim();p.Description=input.Description.Trim();p.Price=p.TransactionType=="Giveaway"?0:input.Price;break;
             case "wanted": var w=await db.WantedPosts.FindAsync(id);if(w==null)return NotFound();w.Title=input.Title.Trim();w.Description=input.Description.Trim();w.Budget=input.Price;break;
             case "stores":if(input.Title.Trim().Length > 100 || input.Description.Length > 1000)return BadRequest(new {error="Shop names allow 100 characters and descriptions 1,000."});var s=await db.Stores.FindAsync(id);if(s==null)return NotFound();s.StoreName=input.Title.Trim();s.Description=input.Description.Trim();break;
@@ -45,7 +45,7 @@ public class AdminContentController(PremsCartDbContext db) : ControllerBase {
             case "reviews":var r=await db.Reviews.FindAsync(id);if(r==null)return NotFound();r.IsHidden=input.Hidden;owner=r.ReviewerId;break;
             default:return NotFound();
         }
-        db.Notifications.Add(new Notification { UserId=owner,Title=input.Hidden?"Content hidden":"Content restored",Message=$"{kind} #{id}: {input.Reason}",Link="/dashboard" });
+        db.Notifications.Add(new Notification { UserId=owner,Title=input.Hidden?"Content hidden":"Content restored",Message=$"{kind} #{id}: {input.Reason}",Link="/dashboard", Type="moderation" });
         db.Reports.Add(new Report { ReporterId=Me,ReportedUserId=owner,Reason=$"Admin {(input.Hidden?"hide":"restore")}: {kind} #{id}",Status="Resolved",ModeratorId=Me,ResolutionAction=input.Hidden?"Hide content":"Restore content",ResolutionNote=input.Reason });
         await db.SaveChangesAsync();return Ok();
     }

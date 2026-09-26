@@ -32,7 +32,7 @@ public sealed class WishlistController(PremsCartDbContext db) : ControllerBase
     public async Task<IActionResult> Save(int productId)
     {
         if (!await db.Products.AnyAsync(p => p.Id == productId && p.Status == "Available" && !p.IsHidden))
-            return NotFound(new { error = "This listing is unavailable." });
+            return NotFound(new { error = "This item is unavailable." });
         if (await db.Wishlist.AnyAsync(x => x.UserId == CurrentUserId && x.ProductId == productId))
             return Ok(new { saved = true });
         db.Wishlist.Add(new WishlistItem { UserId = CurrentUserId, ProductId = productId });

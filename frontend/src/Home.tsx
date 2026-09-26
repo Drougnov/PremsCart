@@ -1,6 +1,6 @@
 import { type CSSProperties } from "react";
-import { HomeDiscovery, ListingShelf } from "./Discovery";
-import Icon, { type IconName } from "./Icon";
+import { HomeDiscovery } from "./Discovery";
+import Icon from "./Icon";
 
 function PosterArt({ kind }: { kind: string }) {
   if (kind === "audio")
@@ -204,14 +204,13 @@ export default function Home({
           <span /> YOUR CAMPUS. YOUR MARKETPLACE.
         </div>
         <h1 id="hero-title">
-          Good finds.
+          Buy, rent, sell,
           <br />
-          Even better <em>connections.</em>
+          or give things <em>away.</em>
         </h1>
         <p className="hero-intro">
-          Buy, rent, sell, or pass it on.
-          <br className="mobile-break" /> A little less waste. A lot more campus
-          life.
+          PremsCart is a marketplace for Premier University students.
+          <br className="mobile-break" /> Find an item, message the student, and meet on campus.
         </p>
         <div className="card-fan" aria-label="Explore campus categories">
           {posters.map((p, i) => (
@@ -260,18 +259,18 @@ export default function Home({
         <div className="hero-bottom">
           <div className="hero-actions">
             <a className="button button-primary" href="/marketplace">
-              Explore marketplace <Icon name="arrow" />
+              Browse Shop <Icon name="arrow" />
             </a>
             <a
               className="button button-secondary"
-              href={admin ? "/admin" : token ? "/listings/new" : "/register"}
+              href={admin ? "/admin" : token ? "/wanted" : "/register"}
             >
               {admin
                 ? "Open admin workspace"
                 : token
-                  ? "Sell something"
+                  ? "See campus requests"
                   : "Join your campus"}{" "}
-              <Icon name={admin ? "dashboard" : "plus"} />
+              <Icon name={admin ? "dashboard" : token ? "wanted" : "plus"} />
             </a>
           </div>
           <p className="hero-caption">
@@ -292,86 +291,6 @@ export default function Home({
         </span>
       </div>
       <HomeDiscovery token={token} />
-      <section className="home-section explore-section">
-        <div className="home-section-heading">
-          <div>
-            <span className="eyebrow">A LITTLE OF EVERYTHING</span>
-            <h2>What brings you here?</h2>
-          </div>
-          <a className="inline-link" href="/marketplace">
-            See all listings <Icon name="arrow" />
-          </a>
-        </div>
-        <div className="explore-grid">
-          {(
-            [
-              [
-                "/marketplace",
-                "market",
-                "Find your next favorite.",
-                "Shop the campus",
-                "Pre-loved books, tech, and everyday essentials.",
-                "01",
-                "sage",
-              ],
-              [
-                "/rentals",
-                "clock",
-                "Need it for a while?",
-                "Rent, don’t buy",
-                "Borrow the useful things. Bring them back.",
-                "02",
-                "lavender",
-              ],
-              [
-                "/giveaways",
-                "gift",
-                "Good things, on the house.",
-                "Give a little",
-                "Free finds and fresh starts for someone else.",
-                "03",
-                "peach",
-              ],
-              [
-                "/stores",
-                "store",
-                "Small shops. Big heart.",
-                "Made on campus",
-                "Discover the businesses built by your classmates.",
-                "04",
-                "sky",
-              ],
-            ] as const
-          ).map(([href, icon, kicker, title, description, n, color]) => (
-            <a className={`explore-card ${color}`} key={href} href={href}>
-              <div className="explore-top">
-                <span>{n} / EXPLORE</span>
-                <Icon name="arrow" />
-              </div>
-              <div className="explore-art">
-                <Icon name={icon as IconName} />
-              </div>
-              <small>{kicker}</small>
-              <h3>{title}</h3>
-              <p>{description}</p>
-            </a>
-          ))}
-        </div>
-        <a className="wanted-callout" href="/wanted">
-          <span className="wanted-mark">
-            <Icon name="wanted" />
-          </span>
-          <div>
-            <strong>Can’t find your thing?</strong>
-            <span>
-              Post a wanted request. Your campus might have just what you need.
-            </span>
-          </div>
-          <span className="inline-link">
-            Explore wanted posts <Icon name="arrow" />
-          </span>
-        </a>
-      </section>
       <section className="home-section process-section">
         <div className="process-intro">
           <span className="eyebrow">LESS SCROLLING. MORE CONNECTING.</span>
@@ -395,19 +314,19 @@ export default function Home({
                 "01",
                 "search",
                 "Find your thing",
-                "Explore listings, pick a rental duration, or discover something free. Add your favorites to the cart.",
+                "Open Shop and use the offer-type filter for items to buy, rent, or receive as giveaways. Open an item to see details and save it if you like it.",
               ],
               [
                 "02",
                 "message",
                 "Make it yours",
-                "Send a purchase or rental request. Chat with the seller and confirm the details together.",
+                "Buy it, request a rental, or message the student. Price offers have their own page so they are easy to track.",
               ],
               [
                 "03",
                 "package",
                 "Meet. Pick up. Pass it on.",
-                "Choose Main gate, Canteen, or Library. Complete the handoff, then share a review. Return rentals when you’re done.",
+                "Choose Main gate, Canteen, or Library, pick a date and time, then complete the handoff. Return rentals when you are done.",
               ],
             ] as const
           ).map(([n, icon, title, description]) => (
@@ -424,20 +343,6 @@ export default function Home({
           ))}
         </div>
       </section>
-      {token && (
-        <section className="home-section rental-home-section">
-          <div className="home-section-heading">
-            <div>
-              <span className="eyebrow">OWN LESS. DO MORE.</span>
-              <h2>Need it temporarily?</h2>
-            </div>
-            <a className="inline-link" href="/rentals">
-              Browse rentals <Icon name="arrow" />
-            </a>
-          </div>
-          <ListingShelf token={token} type="Rent" />
-        </section>
-      )}
       <section className="home-section campus-panel">
         <div className="campus-copy">
           <span className="eyebrow">MADE FOR CAMPUS</span>
@@ -445,7 +350,7 @@ export default function Home({
             A familiar place.
             <br />A better way
             <br />
-            to <em>exchange.</em>
+            to <em>pickup.</em>
           </h2>
           <p>
             Your next textbook, a weekend project, a hoodie with a little
@@ -502,7 +407,7 @@ export default function Home({
             </div>
             <div>
               <small>03 / TRUST, ONE HANDOFF AT A TIME</small>
-              <h3>Real exchanges. Real reviews.</h3>
+              <h3>Real pickups. Real reviews.</h3>
               <p>
                 Feedback comes from completed transactions, including returned
                 rentals.

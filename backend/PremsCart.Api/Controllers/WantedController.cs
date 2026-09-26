@@ -58,13 +58,13 @@ public sealed class WantedController(PremsCartDbContext db, IHubContext<ChatHub>
         if(wanted==null||wanted.IsHidden||wanted.Status!="Open"||wanted.User.Status!="Active"||!wanted.User.IsVerified)return NotFound(new {error="This wanted post is no longer open."});
         if(wanted.UserId==CurrentUserId)return BadRequest(new {error="You cannot respond to your own wanted post."});
         var product=await db.Products.SingleOrDefaultAsync(p=>p.Id==input.ProductId && p.SellerId==CurrentUserId && !p.IsHidden && p.Status=="Available" && !db.StoreProducts.Any(sp=>sp.ProductId==p.Id && (sp.Store.IsHidden||sp.Quantity<1)));
-        if(product==null)return BadRequest(new {error="Choose one of your available listings."});
+        if(product==null)return BadRequest(new {error="Choose one of your available items."});
         var conversation=await db.Conversations.SingleOrDefaultAsync(c=>c.ProductId==product.Id&&c.BuyerId==wanted.UserId&&c.SellerId==CurrentUserId);
         if(conversation==null){
             conversation=new Conversation{ProductId=product.Id,BuyerId=wanted.UserId,SellerId=CurrentUserId};db.Conversations.Add(conversation);
             try{await db.SaveChangesAsync();}catch(DbUpdateException ex) when(ex.InnerException is Npgsql.PostgresException{SqlState:"23505"}){db.Entry(conversation).State=EntityState.Detached;conversation=await db.Conversations.SingleAsync(c=>c.ProductId==product.Id&&c.BuyerId==wanted.UserId&&c.SellerId==CurrentUserId);}
         }
-        var text=$"In response to wanted post #{wanted.Id}: {wanted.Title}. I have {product.Title}. Open the listing above to buy, rent, or request it for free using its available options.";
+        var text=$"In response to request #{wanted.Id}: {wanted.Title}. I have {product.Title} available. Use the linked item card and choose View item to buy it, request a rental, or request it as a giveaway.";
         if(!await db.Messages.AnyAsync(m=>m.ConversationId==conversation.Id&&m.SenderId==CurrentUserId&&m.MessageText==text)){
             var message=new Message{ConversationId=conversation.Id,SenderId=CurrentUserId,MessageText=text};db.Messages.Add(message);await db.SaveChangesAsync();
             await hub.Clients.Group($"conversation:{conversation.Id}").SendAsync("ReceiveMessage",new{message.Id,message.ConversationId,message.SenderId,message.MessageText,message.IsRead,message.SentAt});
@@ -151,7 +151,7 @@ public sealed class WantedController(PremsCartDbContext db, IHubContext<ChatHub>
         if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Description))
             return "Title and description are required.";
         if (!Statuses.Contains(request.Status)) return "Choose a valid status.";
-        if (request.Budget is < 0 or > 9999999999.99m) return "Budget must be between 0 and 9,999,999,999.99.";
+        if (request.Budget is < 0 or > 9999999999m || (request.Budget.HasValue && decimal.Truncate(request.Budget.Value) != request.Budget.Value)) return "Budget must be a whole-Taka amount from 0 to 9,999,999,999.";
         if (request.CategoryId.HasValue && !await db.Categories.AnyAsync(x => x.Id == request.CategoryId))
             return "Choose a valid category.";
         return null;

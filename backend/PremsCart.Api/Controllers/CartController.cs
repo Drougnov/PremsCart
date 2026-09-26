@@ -17,14 +17,14 @@ public sealed class CartController(PremsCartDbContext db) : ControllerBase {
     async Task<string?> Unavailable(Product p, CartLine line) {
         var mode=Mode(p,line);
         if (mode != p.TransactionType && !(mode=="Rent" && p.AllowRent)) return "This transaction option is not available.";
-        if (p.SellerId == Me) return "This is your own listing.";
+        if (p.SellerId == Me) return "This is your own item.";
         if (p.IsHidden || p.Status != "Available" || p.Seller.Status != "Active" || !p.Seller.IsVerified) return "This item is no longer available.";
         if (await db.StoreProducts.AnyAsync(x => x.ProductId == p.Id && (x.Quantity < 1 || x.Store.IsHidden))) return "This store item is unavailable.";
-        if (p.TransactionType is not ("Sell" or "Rent" or "Giveaway")) return "This listing type is not supported.";
+        if (p.TransactionType is not ("Sell" or "Rent" or "Giveaway")) return "This item type is not supported.";
         if (Mode(p,line) == "Rent" && line.RentalDays is not (>= 1 and <= 30)) return "Choose a rental duration of 1–30 days.";
         if (line.RentalStartDate.HasValue && (Mode(p,line) != "Rent" || line.RentalStartDate < DateOnly.FromDateTime(DateTime.UtcNow) || line.RentalStartDate > DateOnly.FromDateTime(DateTime.UtcNow.AddDays(90)))) return "Choose a preferred rental pickup date within the next 90 days.";
-        if (Mode(p,line) != "Rent" && line.RentalDays != null) return "Only rental listings accept a duration.";
-        if (p.TransactionType != "Giveaway" && (p.Price is null or <= 0)) return "This listing needs a valid price.";
+        if (Mode(p,line) != "Rent" && line.RentalDays != null) return "Only rental items accept a duration.";
+        if (p.TransactionType != "Giveaway" && (p.Price is null or <= 0)) return "This item needs a valid price.";
         if (Unit(p,line) * (Mode(p,line) == "Rent" ? line.RentalDays ?? 1 : 1) > 9999999999.99m) return "This total exceeds the supported amount. Choose fewer days.";
         if (await db.Orders.AnyAsync(x => x.ProductId == p.Id && x.BuyerId == Me && Active.Contains(x.Status)) || await db.Offers.AnyAsync(x => x.ProductId == p.Id && x.BuyerId == Me && (x.Status == "Pending" || x.Status == "Countered"))) return "You already have an active request or offer for this item.";
         return null;
@@ -37,7 +37,7 @@ public sealed class CartController(PremsCartDbContext db) : ControllerBase {
         var rows = new List<object>();
         foreach (var line in input.Items) {
             var p = products.SingleOrDefault(x => x.Id == line.ProductId);
-            if (p == null) { rows.Add(new { id = line.ProductId, title = "Removed listing", available = false, error = "This listing no longer exists." }); continue; }
+            if (p == null) { rows.Add(new { id = line.ProductId, title = "Removed item", available = false, error = "This item no longer exists." }); continue; }
             var error = await Unavailable(p,line);
             var unit = Unit(p,line);
             rows.Add(new { p.Id, p.Title, TransactionType = Mode(p,line), p.SellerId, sellerName = p.Seller.FirstName + " " + p.Seller.LastName, p.Location, unitPrice = unit, line.RentalDays, line.RentalStartDate, total = unit * (Mode(p,line) == "Rent" ? line.RentalDays ?? 1 : 1), imageUrl = p.Images.OrderByDescending(x => x.IsPrimary).Select(x => x.ImageUrl).FirstOrDefault(), available = error == null, error });

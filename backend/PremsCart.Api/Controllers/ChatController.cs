@@ -27,7 +27,7 @@ public sealed class ChatController(PremsCartDbContext db, IHubContext<ChatHub> h
             .Select(p => new { p.Id, p.SellerId }).SingleOrDefaultAsync();
         if (product is null) return NotFound(new { error = "Product is unavailable." });
         if (product.SellerId == CurrentUserId)
-            return BadRequest(new { error = "You cannot message yourself about your listing." });
+            return BadRequest(new { error = "You cannot message yourself about your own item." });
         var existing = await db.Conversations.AsNoTracking().SingleOrDefaultAsync(
             x => x.ProductId == product.Id && x.BuyerId == CurrentUserId && x.SellerId == product.SellerId);
         if (existing is not null) return Ok(new { existing.Id });
@@ -57,10 +57,22 @@ public sealed class ChatController(PremsCartDbContext db, IHubContext<ChatHub> h
             .Select(x => new
             {
                 x.Id, x.ProductId, ProductTitle = x.Product.Title,
+                ProductPrice = x.Product.Price,
+                ProductRentalPrice = x.Product.RentalPrice,
+                ProductTransactionType = x.Product.TransactionType,
+                ProductAllowRent = x.Product.AllowRent,
+                ProductStatus = x.Product.Status,
+                ProductImageUrl = x.Product.Images.OrderByDescending(i => i.IsPrimary).ThenBy(i => i.Id)
+                    .Select(i => i.ImageUrl).FirstOrDefault(),
                 OtherUserId = x.BuyerId == me ? x.SellerId : x.BuyerId,
                 OtherUserName = x.BuyerId == me
                     ? x.Seller.FirstName + " " + x.Seller.LastName
                     : x.Buyer.FirstName + " " + x.Buyer.LastName,
+                OtherUserImage = x.BuyerId == me ? x.Seller.ProfileImage : x.Buyer.ProfileImage,
+                OfferAmount = db.Offers.Where(o => o.ProductId == x.ProductId && o.BuyerId == x.BuyerId && o.SellerId == x.SellerId)
+                    .OrderByDescending(o => o.Id).Select(o => (decimal?)o.OfferAmount).FirstOrDefault(),
+                OfferStatus = db.Offers.Where(o => o.ProductId == x.ProductId && o.BuyerId == x.BuyerId && o.SellerId == x.SellerId)
+                    .OrderByDescending(o => o.Id).Select(o => o.Status).FirstOrDefault(),
                 LastMessage = x.Messages.OrderByDescending(m => m.Id)
                     .Select(m => m.IsHidden ? "[Removed by moderation]" : m.MessageText).FirstOrDefault(),
                 LastMessageAt = x.Messages.OrderByDescending(m => m.Id)
