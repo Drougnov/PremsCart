@@ -1,0 +1,36 @@
+name: little_us
+description: A private, local-first long-distance relationship companion.
+publish_to: 'none'
+version: 0.2.0+2
+
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.4.3
+  sqflite: ^2.4.2+1
+  path: ^1.9.1
+  intl: ^0.20.3
+  flutter_local_notifications: ^22.3.1
+  timezone: ^0.11.1
+  flutter_timezone: ^5.1.0
+  cupertino_icons: ^1.0.8
+
+  flutter_gemma: ^1.11.3
+  flutter_gemma_litertlm: ^1.8.5
+
+  flutter_secure_storage: ^11.2.0
+  local_auth: ^3.0.2
+  cryptography: ^2.9.0
+  cryptography_flutter: ^2.3.4
+  file_picker: ^13.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
